@@ -8,6 +8,34 @@ function App() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentColor, setCurrentColor] = useState("#000");
   const [paths, setPaths] = useState([]);
+  const [gridSize, setGridSize] = useState(20); // Grid cell size in pixels
+  const [showGrid, setShowGrid] = useState(true); // Control grid visibility
+
+  // Draw grid on the canvas
+  const drawGrid = (ctx, width, height, gridSize) => {
+    if (!showGrid) return; // Skip drawing grid if it's disabled
+
+    ctx.save();
+    ctx.strokeStyle = "#e2e8f0"; // Medium gray color for better visibility
+    ctx.lineWidth = 0.5;
+
+    // Draw vertical lines
+    for (let x = 0; x <= width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // Draw horizontal lines
+    for (let y = 0; y <= height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
 
   // Set up the canvas size when the component mounts
   useEffect(() => {
@@ -25,7 +53,10 @@ function App() {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-  }, []);
+
+    // Draw the grid
+    drawGrid(ctx, canvasWidth, canvasHeight, gridSize);
+  }, [gridSize, showGrid]);
 
   // Load drawing data from the server
   const loadDrawingData = async () => {
@@ -42,6 +73,9 @@ function App() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvas.width, canvas.height); // Repaint background
+
+    // Redraw the grid
+    drawGrid(ctx, canvas.width, canvas.height, gridSize);
 
     paths.forEach((path) => {
       ctx.strokeStyle = path.color; // Set color for the path
@@ -125,7 +159,7 @@ function App() {
       <div className="h-screen w-screen overflow-auto relative">
         <div className="min-w-full min-h-full relative">
           <canvas
-            id="canvas"
+            id="syncboard-canvas"
             ref={canvasRef}
             className="absolute inset-0"
             style={{ touchAction: "auto" }}
@@ -141,6 +175,10 @@ function App() {
         setCurrentTool={setCurrentTool}
         setCurrentColor={setCurrentColor}
         currentColor={currentColor}
+        gridSize={gridSize}
+        setGridSize={setGridSize}
+        showGrid={showGrid}
+        setShowGrid={setShowGrid}
       />
     </main>
   );
