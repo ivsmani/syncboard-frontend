@@ -1,6 +1,8 @@
 import Navbar from "./components/Navbar";
 import { useState, useRef, useEffect } from "react";
 import InfoButton from "./components/InfoButton";
+import StickyNoteContainer from "./components/StickyNoteContainer";
+import { v4 as uuidv4 } from "uuid";
 
 function App() {
   const canvasRef = useRef(null);
@@ -10,6 +12,9 @@ function App() {
   const [paths, setPaths] = useState([]);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const containerRef = useRef(null);
+
+  // Sticky notes state
+  const [stickyNotes, setStickyNotes] = useState([]);
 
   // Use refs to store panning state to avoid re-renders during panning
   const panningRef = useRef({
@@ -23,6 +28,12 @@ function App() {
   // Grid state
   const [gridSize, setGridSize] = useState(20); // Grid cell size in pixels
   const [showGrid, setShowGrid] = useState(true); // Control grid visibility
+
+  // Set up the canvas size when the component mounts
+  const [canvasDimensions, setCanvasDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
 
   // Draw grid on the canvas
   const drawGrid = (ctx, width, height, gridSize) => {
@@ -101,6 +112,9 @@ function App() {
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
+    // Update canvas dimensions state
+    setCanvasDimensions({ width: canvasWidth, height: canvasHeight });
+
     // Initialize canvas with a white background
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "white";
@@ -116,6 +130,11 @@ function App() {
     const data = await response.json();
     setPaths(data.paths); // Update paths with loaded data
     drawPaths(data.paths); // Draw the loaded paths on the canvas
+
+    // If there are sticky notes in the data, load them too
+    if (data.stickyNotes) {
+      setStickyNotes(data.stickyNotes);
+    }
   };
 
   // Draw the paths on the canvas
@@ -146,6 +165,29 @@ function App() {
     loadDrawingData();
   }, []);
 
+  // Handle canvas click for different tools
+  const handleCanvasClick = (e) => {
+    if (currentTool === "sticky") {
+      // Create a new sticky note at the click position
+      // Calculate position relative to the canvas, accounting for scroll
+      const container = containerRef.current;
+      const scrollLeft = container ? container.scrollLeft : 0;
+      const scrollTop = container ? container.scrollTop : 0;
+
+      // Store the absolute position (including scroll offset)
+      const newNote = {
+        id: uuidv4(),
+        position: {
+          x: e.nativeEvent.offsetX + scrollLeft,
+          y: e.nativeEvent.offsetY + scrollTop,
+        },
+        content: "",
+      };
+
+      setStickyNotes((prevNotes) => [...prevNotes, newNote]);
+    }
+  };
+
   // Start drawing or panning on the canvas
   const startDrawing = (e) => {
     if (isSpacePressed) {
@@ -157,6 +199,12 @@ function App() {
       panningRef.current.scrollTop = containerRef.current.scrollTop;
 
       document.body.style.cursor = "grabbing";
+      return;
+    }
+
+    if (currentTool === "sticky") {
+      // Handle sticky note creation on mousedown
+      handleCanvasClick(e);
       return;
     }
 
@@ -231,14 +279,47 @@ function App() {
     setIsDrawing(false); // Set drawing state to false
   };
 
-  // Send drawing data to the server
-  const sendDrawingData = () => {
-    console.log(paths); // Log the paths for debugging
+  // Handle sticky note updates
+  const handleUpdateStickyNote = (id, updates) => {
+    // Make sure we're getting the absolute position (including scroll)
+    setStickyNotes((prevNotes) =>
+      prevNotes.map((note) => (note.id === id ? { ...note, ...updates } : note))
+    );
+
+    // Send updated sticky notes to server (for sync)
+    sendDrawingData();
   };
 
+  // Handle sticky note deletion
+  const handleDeleteStickyNote = (id) => {
+    setStickyNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
+
+    // Send updated sticky notes to server (for sync)
+    sendDrawingData();
+  };
+
+  // Send drawing data to the server
+  const sendDrawingData = () => {
+    // Include both paths and sticky notes in the data to be sent
+    const drawingData = {
+      paths,
+      stickyNotes,
+    };
+
+    console.log("Syncing data:", drawingData); // Log the data for debugging
+
+    // Here you would implement the actual API call to sync data
+    // Example: fetch('/api/save-drawing', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(drawingData)
+    // });
+  };
+
+  // Send data when paths or sticky notes change
   useEffect(() => {
-    sendDrawingData(); // Send drawing data whenever paths change
-  }, [paths]);
+    sendDrawingData();
+  }, [paths, stickyNotes]);
 
   return (
     <main>
@@ -247,7 +328,16 @@ function App() {
         className="h-screen w-screen overflow-auto relative"
         ref={containerRef}
       >
-        <div className="min-w-full min-h-full relative">
+        <div
+          className="relative"
+          style={{
+            minWidth: "100%",
+            minHeight: "100%",
+            width: canvasDimensions.width > 0 ? canvasDimensions.width : "100%",
+            height:
+              canvasDimensions.height > 0 ? canvasDimensions.height : "100%",
+          }}
+        >
           <canvas
             id="syncboard-canvas"
             ref={canvasRef}
@@ -257,6 +347,14 @@ function App() {
             onMouseMove={draw}
             onMouseUp={stopDrawing}
             onMouseOut={stopDrawing}
+          />
+
+          {/* Sticky Notes Layer */}
+          <StickyNoteContainer
+            notes={stickyNotes}
+            onDeleteNote={handleDeleteStickyNote}
+            onUpdateNote={handleUpdateStickyNote}
+            canvasDimensions={canvasDimensions}
           />
         </div>
       </div>
