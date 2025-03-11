@@ -140,7 +140,7 @@ function App() {
   // Draw the paths on the canvas
   const drawPaths = (paths) => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvas.width, canvas.height); // Repaint background
@@ -149,13 +149,45 @@ function App() {
     drawGrid(ctx, canvas.width, canvas.height, gridSize);
 
     paths.forEach((path) => {
+      if (!path.points || path.points.length === 0) return;
+
       ctx.strokeStyle = path.color; // Set color for the path
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5; // Slightly thicker lines for better visibility
+      ctx.lineCap = "round"; // Round line caps for smoother appearance
+      ctx.lineJoin = "round"; // Round line joins for smoother appearance
+
+      // Enable anti-aliasing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
       ctx.beginPath();
       ctx.moveTo(path.start.x, path.start.y);
-      path.points.forEach((point) => {
-        ctx.lineTo(point.x, point.y); // Draw each point in the path
-      });
+
+      // If we have enough points, use bezier curves for smoother lines
+      if (path.points.length > 1) {
+        // Draw a curve between each point, using the midpoints as control points
+        for (let i = 0; i < path.points.length - 1; i++) {
+          const p1 = path.points[i];
+          const p2 = path.points[i + 1];
+
+          // Calculate the midpoint
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+
+          // Use quadratic curve to the midpoint
+          ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+        }
+
+        // For the last point
+        const lastPoint = path.points[path.points.length - 1];
+        ctx.lineTo(lastPoint.x, lastPoint.y);
+      } else {
+        // If we only have one point, just draw a line to it
+        path.points.forEach((point) => {
+          ctx.lineTo(point.x, point.y);
+        });
+      }
+
       ctx.stroke();
     });
   };
@@ -211,9 +243,16 @@ function App() {
     if (currentTool !== "pen") return; // Only allow drawing with the pen tool
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     ctx.strokeStyle = currentColor; // Set the current color
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5; // Match the line width in drawPaths
+    ctx.lineCap = "round"; // Round line caps for smoother appearance
+    ctx.lineJoin = "round"; // Round line joins for smoother appearance
+
+    // Enable anti-aliasing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
     ctx.beginPath();
 
     const startPoint = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }; // Get starting point
@@ -225,7 +264,13 @@ function App() {
       ...prevPaths,
       { color: currentColor, start: startPoint, points: [] },
     ]);
+
+    // Initialize the last point reference
+    lastPointRef.current = startPoint;
   };
+
+  // Last point for throttling
+  const lastPointRef = useRef({ x: 0, y: 0 });
 
   // Draw or pan on the canvas as the mouse moves
   const draw = (e) => {
@@ -248,20 +293,45 @@ function App() {
 
     if (!isDrawing || currentTool !== "pen") return; // Only draw if currently drawing with the pen
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const currentPoint = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }; // Get current point
 
-    const point = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }; // Get current point
+    // Calculate distance from last point to implement a minimum distance threshold
+    const lastPoint = lastPointRef.current;
+    const distance = Math.sqrt(
+      Math.pow(currentPoint.x - lastPoint.x, 2) +
+        Math.pow(currentPoint.y - lastPoint.y, 2)
+    );
 
-    // Add the point to the current path
-    setPaths((prevPaths) => {
-      const newPaths = [...prevPaths];
-      newPaths[newPaths.length - 1].points.push(point); // Add point to the last path
-      return newPaths;
-    });
+    // Only add points if they're a minimum distance apart (prevents too many points)
+    // Use a smaller threshold for more precise curves (1.5 instead of 2)
+    if (
+      distance > 1.5 ||
+      (paths.length > 0 && paths[paths.length - 1].points.length === 0)
+    ) {
+      // Add the point to the current path
+      setPaths((prevPaths) => {
+        const newPaths = [...prevPaths];
+        if (newPaths.length > 0) {
+          newPaths[newPaths.length - 1].points.push(currentPoint); // Add point to the last path
+        }
+        return newPaths;
+      });
 
-    ctx.lineTo(point.x, point.y); // Draw line to the current point
-    ctx.stroke();
+      // Update last point reference
+      lastPointRef.current = currentPoint;
+
+      // Clear the canvas and redraw all paths for smoother appearance
+      // This is more expensive but produces better results
+      drawPaths(
+        paths.concat([
+          {
+            color: currentColor,
+            start: paths[paths.length - 1].start,
+            points: [...paths[paths.length - 1].points, currentPoint],
+          },
+        ])
+      );
+    }
   };
 
   // Stop drawing or panning when the mouse is released
