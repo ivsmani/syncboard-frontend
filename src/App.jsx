@@ -134,7 +134,12 @@ function App() {
           />
         </div>
       </div>
-      <Navbar currentTool={currentTool} setCurrentTool={setCurrentTool} />
+      <Navbar
+        currentTool={currentTool}
+        setCurrentTool={setCurrentTool}
+        setCurrentColor={setCurrentColor}
+        currentColor={currentColor}
+      />
     </main>
   );
 }
