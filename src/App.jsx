@@ -1,5 +1,6 @@
 import Navbar from "./components/Navbar";
 import { useState, useRef, useEffect } from "react";
+import InfoButton from "./components/InfoButton";
 
 function App() {
   const canvasRef = useRef(null);
@@ -120,6 +121,7 @@ function App() {
 
   return (
     <main>
+      <InfoButton />
       <div className="h-screen w-screen overflow-auto relative">
         <div className="min-w-full min-h-full relative">
           <canvas
