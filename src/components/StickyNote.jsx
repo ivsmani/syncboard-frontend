@@ -173,7 +173,6 @@ const StickyNote = ({
         value={content}
         onChange={handleContentChange}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
       />
     </div>
   );

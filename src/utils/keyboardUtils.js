@@ -6,8 +6,17 @@
  * @returns {Function} Cleanup function to remove event listeners
  */
 export const setupKeyboardEvents = (setIsSpacePressed) => {
+  // Helper function to check if the event target is an input or textarea
+  const isInputElement = (target) => {
+    return (
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable
+    );
+  };
+
   const handleKeyDown = (e) => {
-    if (e.code === "Space" && !e.repeat) {
+    if (e.code === "Space" && !e.repeat && !isInputElement(e.target)) {
       // Prevent default scrolling behavior of spacebar
       e.preventDefault();
       setIsSpacePressed(true);
@@ -16,7 +25,7 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
   };
 
   const handleKeyUp = (e) => {
-    if (e.code === "Space") {
+    if (e.code === "Space" && !isInputElement(e.target)) {
       // Prevent default scrolling behavior of spacebar
       e.preventDefault();
       setIsSpacePressed(false);
@@ -26,7 +35,7 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
 
   // Also prevent default on keypress to ensure it's blocked in all cases
   const handleKeyPress = (e) => {
-    if (e.code === "Space" || e.key === " ") {
+    if ((e.code === "Space" || e.key === " ") && !isInputElement(e.target)) {
       e.preventDefault();
     }
   };
