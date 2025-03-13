@@ -13,9 +13,11 @@ import {
   createStickyNote,
   updateStickyNote,
   deleteStickyNote,
-  loadDrawingData,
   sendDrawingData,
   setupKeyboardEvents,
+  initializeSocketListeners,
+  initializeSocket,
+  loadDrawings,
 } from "./utils";
 
 function App() {
@@ -26,6 +28,7 @@ function App() {
   const [paths, setPaths] = useState([]);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const containerRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Sticky notes state
   const [stickyNotes, setStickyNotes] = useState([]);
@@ -52,6 +55,30 @@ function App() {
   // Last point for throttling
   const lastPointRef = useRef({ x: 0, y: 0 });
 
+  // Initialize socket connection and load existing data
+  useEffect(() => {
+    const setupApp = async () => {
+      setIsLoading(true);
+
+      // Initialize the socket connection
+      initializeSocket();
+
+      // Set up socket listeners for real-time updates
+      initializeSocketListeners(setPaths, setStickyNotes, canvasRef);
+
+      try {
+        // Load existing drawings from the server
+        await loadDrawings();
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error loading initial data:", error);
+        setIsLoading(false);
+      }
+    };
+
+    setupApp();
+  }, []);
+
   // Handle keyboard events for spacebar
   useEffect(() => {
     // Use the keyboard utility to set up event listeners
@@ -70,21 +97,12 @@ function App() {
     setupCanvas(canvas, setCanvasDimensions, gridSize, showGrid);
   }, [gridSize, showGrid]);
 
-  // Load drawing data from the server
+  // Draw paths whenever they change
   useEffect(() => {
-    const fetchData = async () => {
-      const data = await loadDrawingData();
-      setPaths(data.paths || []); // Update paths with loaded data
-      drawPaths(canvasRef.current, data.paths || [], gridSize, showGrid); // Draw the loaded paths on the canvas
-
-      // If there are sticky notes in the data, load them too
-      if (data.stickyNotes) {
-        setStickyNotes(data.stickyNotes);
-      }
-    };
-
-    fetchData();
-  }, []);
+    if (canvasRef.current && paths.length > 0) {
+      drawPaths(canvasRef.current, paths, gridSize, showGrid);
+    }
+  }, [paths, gridSize, showGrid]);
 
   // Handle canvas click for different tools
   const handleCanvasClick = (e) => {
@@ -137,6 +155,7 @@ function App() {
       currentTool,
       canvasRef,
       setIsDrawing,
+      paths,
     });
   };
 
@@ -161,11 +180,6 @@ function App() {
     sendDrawingData({ paths, stickyNotes: deleteStickyNote(stickyNotes, id) });
   };
 
-  // Send data when paths or sticky notes change
-  useEffect(() => {
-    sendDrawingData({ paths, stickyNotes });
-  }, [paths, stickyNotes]);
-
   return (
     <main>
       <InfoButton />
@@ -173,6 +187,13 @@ function App() {
         className="h-screen w-screen overflow-auto relative"
         ref={containerRef}
       >
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-50">
+            <div className="text-xl font-semibold">
+              Loading drawing board...
+            </div>
+          </div>
+        ) : null}
         <div
           className="relative"
           style={{

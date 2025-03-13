@@ -1,5 +1,6 @@
 // Drawing utility functions
 import { drawPaths } from "./canvasUtils";
+import { sendPath, sendStopDrawingEvent } from "./apiUtils";
 
 /**
  * Calculate distance between two points
@@ -135,6 +136,12 @@ export const handleDraw = (e, params) => {
       const newPaths = [...prevPaths];
       if (newPaths.length > 0) {
         newPaths[newPaths.length - 1].points.push(currentPoint); // Add point to the last path
+
+        // Send the updated path to the server
+        if (newPaths.length > 0) {
+          const currentPath = newPaths[newPaths.length - 1];
+          sendPath(currentPath);
+        }
       }
       return newPaths;
     });
@@ -164,8 +171,14 @@ export const handleDraw = (e, params) => {
  * @param {Object} params - Parameters for drawing
  */
 export const handleStopDrawing = (params) => {
-  const { panningRef, isSpacePressed, currentTool, canvasRef, setIsDrawing } =
-    params;
+  const {
+    panningRef,
+    isSpacePressed,
+    currentTool,
+    canvasRef,
+    setIsDrawing,
+    paths,
+  } = params;
 
   if (panningRef.current.isPanning) {
     panningRef.current.isPanning = false;
@@ -178,4 +191,9 @@ export const handleStopDrawing = (params) => {
   const ctx = canvas.getContext("2d");
   ctx.closePath(); // Close the current path
   setIsDrawing(false); // Set drawing state to false
+
+  // Send the stop drawing event to the server
+  if (paths && paths.length > 0) {
+    sendStopDrawingEvent(paths);
+  }
 };

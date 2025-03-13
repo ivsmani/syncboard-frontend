@@ -14,3 +14,6 @@ export * from "./apiUtils";
 
 // Keyboard utilities
 export * from "./keyboardUtils";
+
+// Socket utilities
+export * from "./socketUtils";

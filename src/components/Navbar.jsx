@@ -33,7 +33,7 @@ const Navbar = ({
   };
 
   return (
-    <div className="fixed bottom-8 left-[calc(50%-132px)] z-50 h-16 bg-white border border-gray-200 rounded-md">
+    <div className="fixed bottom-8 left-[calc(50%-162px)] z-50 h-16 bg-white border border-gray-200 rounded-md">
       <div className="grid h-full max-w-lg grid-cols-4 mx-auto divide-x divide-gray-200">
         <button
           type="button"
