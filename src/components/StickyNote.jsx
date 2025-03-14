@@ -29,6 +29,13 @@ const StickyNote = ({
   // Debounce timer for content updates
   const contentUpdateTimerRef = useRef(null);
 
+  // Throttle timer for position updates during dragging
+  const positionUpdateTimerRef = useRef(null);
+  const POSITION_THROTTLE_DELAY = 50; // 50ms throttle for position updates
+
+  // Track if content has been updated from external source
+  const contentUpdatedExternallyRef = useRef(false);
+
   // Handle dragging
   const handleMouseDown = (e) => {
     // Prevent event from reaching the canvas
@@ -73,21 +80,51 @@ const StickyNote = ({
       const newAbsoluteY =
         absolutePositionRef.current.y + mouseDeltaY + scrollDeltaY;
 
-      // Update the position in the parent component with the absolute position
-      onUpdate(id, {
-        position: { x: newAbsoluteX, y: newAbsoluteY },
-        content,
-      });
+      // Throttle position updates to the server to improve performance
+      if (!positionUpdateTimerRef.current) {
+        positionUpdateTimerRef.current = setTimeout(() => {
+          // Update the position in the parent component with the absolute position
+          onUpdate(id, {
+            position: { x: newAbsoluteX, y: newAbsoluteY },
+            content,
+          });
+          positionUpdateTimerRef.current = null;
+        }, POSITION_THROTTLE_DELAY);
+      }
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e) => {
     if (isDragging) {
+      // Clear any pending position update timer
+      if (positionUpdateTimerRef.current) {
+        clearTimeout(positionUpdateTimerRef.current);
+        positionUpdateTimerRef.current = null;
+      }
+
+      // Calculate the final position
+      const mouseDeltaX = e.clientX - dragStartRef.current.x;
+      const mouseDeltaY = e.clientY - dragStartRef.current.y;
+      const scrollDeltaX = scrollOffset.x - initialScrollRef.current.x;
+      const scrollDeltaY = scrollOffset.y - initialScrollRef.current.y;
+
+      const finalAbsoluteX =
+        absolutePositionRef.current.x + mouseDeltaX + scrollDeltaX;
+      const finalAbsoluteY =
+        absolutePositionRef.current.y + mouseDeltaY + scrollDeltaY;
+
       // Update the absolute position reference with the final position
       absolutePositionRef.current = {
-        x: initialPosition.x + scrollOffset.x,
-        y: initialPosition.y + scrollOffset.y,
+        x: finalAbsoluteX,
+        y: finalAbsoluteY,
       };
+
+      // Send the final position update
+      onUpdate(id, {
+        position: absolutePositionRef.current,
+        content,
+        isFinalPosition: true,
+      });
 
       setIsDragging(false);
     }
@@ -101,23 +138,28 @@ const StickyNote = ({
     const newContent = e.target.value;
     setContent(newContent);
 
+    // Send an immediate update for real-time collaboration
+    onUpdate(id, {
+      content: newContent,
+      isContentUpdate: true, // Mark this as a content update
+    });
+
     // Clear any existing timer
     if (contentUpdateTimerRef.current) {
       clearTimeout(contentUpdateTimerRef.current);
     }
 
     // Set a new timer to update the content after a short delay
+    // This is for the final update that will be saved to the database
     contentUpdateTimerRef.current = setTimeout(() => {
-      // Update the content in the parent component
+      // Send a final content update to be saved to the database
       onUpdate(id, {
-        position: {
-          x: initialPosition.x + scrollOffset.x,
-          y: initialPosition.y + scrollOffset.y,
-        },
+        position: absolutePositionRef.current,
         content: newContent,
+        isFinalContent: true, // Mark this as the final content update
       });
       contentUpdateTimerRef.current = null;
-    }, 300); // 300ms debounce delay
+    }, 500); // 500ms debounce delay
   };
 
   // Handle delete
@@ -144,6 +186,15 @@ const StickyNote = ({
     }
   }, [initialPosition, scrollOffset, isDragging]);
 
+  // Update content when initialContent changes (from other users)
+  useEffect(() => {
+    // Only update if the content is different and not being edited locally
+    if (initialContent !== content && !contentUpdateTimerRef.current) {
+      contentUpdatedExternallyRef.current = true;
+      setContent(initialContent);
+    }
+  }, [initialContent]);
+
   // Add and remove event listeners for dragging
   useEffect(() => {
     if (isDragging) {
@@ -155,13 +206,16 @@ const StickyNote = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, scrollOffset]);
+  }, [isDragging, scrollOffset, content]);
 
   // Clean up the debounce timer when the component unmounts
   useEffect(() => {
     return () => {
       if (contentUpdateTimerRef.current) {
         clearTimeout(contentUpdateTimerRef.current);
+      }
+      if (positionUpdateTimerRef.current) {
+        clearTimeout(positionUpdateTimerRef.current);
       }
     };
   }, []);

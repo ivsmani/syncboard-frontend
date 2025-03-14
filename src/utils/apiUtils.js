@@ -129,10 +129,30 @@ export const initializeSocketListeners = (
     console.log("Sticky note updated:", note);
     if (note && note.id) {
       setStickyNotes((prevNotes) => {
-        const newNotes = prevNotes.map((n) =>
-          n.id === note.id ? { ...n, ...note } : n
-        );
+        // Find the note to update
+        const index = prevNotes.findIndex((n) => n.id === note.id);
+
+        if (index === -1) return prevNotes; // Note not found
+
+        // Create a new array with the updated note
+        const newNotes = [...prevNotes];
+
+        // Merge the update with the existing note, preserving fields not included in the update
+        newNotes[index] = {
+          ...newNotes[index],
+          ...note,
+          // If this is a position update, ensure we update the position correctly
+          position: note.position
+            ? {
+                ...newNotes[index].position,
+                ...note.position,
+              }
+            : newNotes[index].position,
+        };
+
+        // Update the cache
         drawingDataCache.stickyNotes = newNotes;
+
         return newNotes;
       });
     }
