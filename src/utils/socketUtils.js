@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:3001";
+const SOCKET_URL = "http://143.198.129.20:3002";
 
 // Create a socket instance
 let socket = null;

@@ -89,6 +89,54 @@ export const initializeSocketListeners = (
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
   });
+
+  // Listen for sticky note events
+  socket.on("load-sticky-notes", (notes) => {
+    console.log("Received sticky notes:", notes);
+    if (Array.isArray(notes)) {
+      setStickyNotes(notes);
+      drawingDataCache.stickyNotes = notes;
+    }
+  });
+
+  socket.on("note-added", (note) => {
+    console.log("Received new sticky note:", note);
+    if (note && note.id) {
+      setStickyNotes((prevNotes) => {
+        // Avoid duplicates
+        if (prevNotes.some((n) => n.id === note.id)) {
+          return prevNotes;
+        }
+        const newNotes = [...prevNotes, note];
+        drawingDataCache.stickyNotes = newNotes;
+        return newNotes;
+      });
+    }
+  });
+
+  socket.on("sticky-note-deleted", (note) => {
+    console.log("Sticky note deleted:", note);
+    if (note && note.id) {
+      setStickyNotes((prevNotes) => {
+        const newNotes = prevNotes.filter((n) => n.id !== note.id);
+        drawingDataCache.stickyNotes = newNotes;
+        return newNotes;
+      });
+    }
+  });
+
+  socket.on("updateNote", (note) => {
+    console.log("Sticky note updated:", note);
+    if (note && note.id) {
+      setStickyNotes((prevNotes) => {
+        const newNotes = prevNotes.map((n) =>
+          n.id === note.id ? { ...n, ...note } : n
+        );
+        drawingDataCache.stickyNotes = newNotes;
+        return newNotes;
+      });
+    }
+  });
 };
 
 /**
@@ -102,8 +150,21 @@ export const sendDrawingData = async (data) => {
   // Update the cache
   drawingDataCache = data;
 
-  // For sticky notes, we'll implement this later
-  // For now, we're focusing on drawing paths
+  // Send sticky note data to the server
+  const socket = getSocket();
+
+  // Send stop-draw event for paths
+  if (data.paths) {
+    socket.emit("stop-draw", { paths: data.paths });
+  }
+
+  // Send sticky note updates
+  if (data.stickyNotes) {
+    // For each sticky note, send an update
+    data.stickyNotes.forEach((note) => {
+      socket.emit("updateNote", note);
+    });
+  }
 };
 
 /**
@@ -120,4 +181,22 @@ export const sendPath = (path) => {
  */
 export const sendStopDrawingEvent = (paths) => {
   sendStopDrawing(paths);
+};
+
+/**
+ * Send a new sticky note to the server
+ * @param {Object} note - The sticky note to send
+ */
+export const sendNewStickyNote = (note) => {
+  const socket = getSocket();
+  socket.emit("add-note", note);
+};
+
+/**
+ * Delete a sticky note on the server
+ * @param {Object} note - The sticky note to delete
+ */
+export const deleteStickyNoteFromServer = (note) => {
+  const socket = getSocket();
+  socket.emit("delete-sticky-note", note);
 };

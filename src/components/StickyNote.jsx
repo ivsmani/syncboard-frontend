@@ -26,6 +26,9 @@ const StickyNote = ({
     y: initialPosition.y + scrollOffset.y,
   });
 
+  // Debounce timer for content updates
+  const contentUpdateTimerRef = useRef(null);
+
   // Handle dragging
   const handleMouseDown = (e) => {
     // Prevent event from reaching the canvas
@@ -98,14 +101,23 @@ const StickyNote = ({
     const newContent = e.target.value;
     setContent(newContent);
 
-    // Update the content in the parent component
-    onUpdate(id, {
-      position: {
-        x: initialPosition.x + scrollOffset.x,
-        y: initialPosition.y + scrollOffset.y,
-      },
-      content: newContent,
-    });
+    // Clear any existing timer
+    if (contentUpdateTimerRef.current) {
+      clearTimeout(contentUpdateTimerRef.current);
+    }
+
+    // Set a new timer to update the content after a short delay
+    contentUpdateTimerRef.current = setTimeout(() => {
+      // Update the content in the parent component
+      onUpdate(id, {
+        position: {
+          x: initialPosition.x + scrollOffset.x,
+          y: initialPosition.y + scrollOffset.y,
+        },
+        content: newContent,
+      });
+      contentUpdateTimerRef.current = null;
+    }, 300); // 300ms debounce delay
   };
 
   // Handle delete
@@ -144,6 +156,15 @@ const StickyNote = ({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, scrollOffset]);
+
+  // Clean up the debounce timer when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (contentUpdateTimerRef.current) {
+        clearTimeout(contentUpdateTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div

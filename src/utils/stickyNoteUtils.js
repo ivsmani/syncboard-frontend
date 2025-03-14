@@ -39,7 +39,7 @@ export const updateStickyNote = (notes, id, updates) => {
  * Delete a sticky note
  * @param {Array} notes - Array of sticky notes
  * @param {string} id - ID of the note to delete
- * @returns {Array} Updated array of sticky notes
+ * @returns {Array} Updated array of sticky notes with the note removed
  */
 export const deleteStickyNote = (notes, id) => {
   return notes.filter((note) => note.id !== id);

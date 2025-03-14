@@ -12,8 +12,9 @@ import {
   handleStopDrawing,
   createStickyNote,
   updateStickyNote,
-  deleteStickyNote,
   sendDrawingData,
+  sendNewStickyNote,
+  deleteStickyNoteFromServer,
   setupKeyboardEvents,
   initializeSocketListeners,
   initializeSocket,
@@ -109,7 +110,12 @@ function App() {
     if (currentTool === "sticky") {
       // Create a new sticky note at the click position using the utility function
       const newNote = createStickyNote(e, containerRef);
+
+      // Update local state
       setStickyNotes((prevNotes) => [...prevNotes, newNote]);
+
+      // Send the new sticky note to the server for real-time sync
+      sendNewStickyNote(newNote);
     }
   };
 
@@ -173,11 +179,15 @@ function App() {
 
   // Handle sticky note deletion
   const handleDeleteStickyNote = (id) => {
-    // Use the sticky note utility to delete the note
-    setStickyNotes((prevNotes) => deleteStickyNote(prevNotes, id));
+    // Find the note to delete
+    const noteToDelete = stickyNotes.find((note) => note.id === id);
+    if (!noteToDelete) return;
 
-    // Send updated sticky notes to server (for sync)
-    sendDrawingData({ paths, stickyNotes: deleteStickyNote(stickyNotes, id) });
+    // Use the sticky note utility to update local state
+    setStickyNotes((prevNotes) => prevNotes.filter((note) => note.id !== id));
+
+    // Send delete event to server for sync
+    deleteStickyNoteFromServer(noteToDelete);
   };
 
   return (
