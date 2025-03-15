@@ -77,3 +77,63 @@ export const clearCanvas = () => {
   const socket = getSocket();
   socket.emit("clear-canvas", {});
 };
+
+/**
+ * Set up a listener for the update-drawing event
+ * @param {Function} setPaths - Function to update the paths state
+ */
+export const setupUpdateDrawingListener = (setPaths) => {
+  const socket = getSocket();
+
+  // Remove any existing listener to prevent duplicates
+  socket.off("update-drawing");
+
+  // Listen for complete drawing updates (important for undo/redo operations)
+  socket.on("update-drawing", (drawing) => {
+    if (drawing && drawing.paths !== undefined) {
+      const operation = drawing.operation || "update";
+      const source = drawing.source || "unknown";
+
+      console.log(
+        `Received ${operation} operation from ${source}:`,
+        drawing.paths ? `${drawing.paths.length} paths` : "empty drawing"
+      );
+
+      // Always update the paths state with the received paths
+      // This will update the UI without affecting the history
+      setPaths(drawing.paths || []);
+    } else {
+      console.warn("Received invalid update-drawing event:", drawing);
+    }
+  });
+};
+
+/**
+ * Set up a listener for user presence updates
+ * @param {Function} setConnectedUsers - Function to update the connected users state
+ */
+export const setupUserPresenceListener = (setConnectedUsers) => {
+  const socket = getSocket();
+
+  // Remove any existing listener to prevent duplicates
+  socket.off("user-presence-update");
+
+  // Listen for user presence updates
+  socket.on("user-presence-update", (users) => {
+    console.log(
+      "Received user presence update:",
+      users.length,
+      "users connected"
+    );
+    setConnectedUsers(users);
+  });
+};
+
+/**
+ * Update the current user's information
+ * @param {Object} userInfo - User information to update
+ */
+export const updateUserInfo = (userInfo) => {
+  const socket = getSocket();
+  socket.emit("update-user-info", userInfo);
+};

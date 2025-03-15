@@ -1,5 +1,5 @@
 import React, { useState, memo } from "react";
-import { Info, X, XCircle } from "@phosphor-icons/react";
+import { Info, X, XCircle, Users } from "@phosphor-icons/react";
 
 // Memoized TeamMember component to prevent unnecessary re-renders
 const TeamMember = memo(({ image, name, alt }) => (
@@ -12,6 +12,19 @@ const TeamMember = memo(({ image, name, alt }) => (
     />
     <span className="text-lg font-semibold">{name}</span>
   </li>
+));
+
+// Memoized ConnectedUser component to display a connected user
+const ConnectedUser = memo(({ user }) => (
+  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-md">
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold"
+      style={{ backgroundColor: user.color }}
+    >
+      {user.initial}
+    </div>
+    <span className="text-sm font-medium">User {user.id.substring(0, 6)}</span>
+  </div>
 ));
 
 // Team data extracted for better maintainability
@@ -49,7 +62,7 @@ const teamMembers = [
 ];
 
 // Memoized Modal component to prevent unnecessary re-renders
-const Modal = memo(({ isOpen, onClose }) => {
+const Modal = memo(({ isOpen, onClose, connectedUsers = [] }) => {
   if (!isOpen) return null;
 
   // Handle click outside to close modal
@@ -88,6 +101,21 @@ const Modal = memo(({ isOpen, onClose }) => {
           meetings, and project planning.
         </p>
 
+        {/* Connected Users Section */}
+        {connectedUsers.length > 0 && (
+          <section className="mb-8">
+            <h3 className="text-lg md:text-xl font-bold mb-4 flex items-center justify-center">
+              <Users size={20} className="mr-2" />
+              Currently Connected ({connectedUsers.length})
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {connectedUsers.map((user) => (
+                <ConnectedUser key={user.id} user={user} />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="flex flex-col">
           <h3 className="text-lg md:text-xl font-bold mb-4 text-center">
             Our Team
@@ -110,7 +138,7 @@ const Modal = memo(({ isOpen, onClose }) => {
   );
 });
 
-const InfoButton = () => {
+const InfoButton = ({ connectedUsers = [] }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleOpenModal = () => setIsModalOpen(true);
@@ -127,7 +155,11 @@ const InfoButton = () => {
         <Info size={24} weight="fill" color="#99a1af" />
       </button>
 
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal} />
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        connectedUsers={connectedUsers}
+      />
     </>
   );
 };

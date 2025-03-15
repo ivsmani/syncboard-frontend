@@ -2,6 +2,7 @@ import Navbar from "./components/Navbar";
 import { useState, useRef, useEffect } from "react";
 import InfoButton from "./components/InfoButton";
 import StickyNoteContainer from "./components/StickyNoteContainer";
+import UserPresence from "./components/UserPresence";
 
 // Define canvas dimensions as constants
 const CANVAS_WIDTH = 1920;
@@ -23,6 +24,8 @@ import {
   initializeSocketListeners,
   initializeSocket,
   loadDrawings,
+  getSocket,
+  setupUserPresenceListener,
 } from "./utils";
 
 function App() {
@@ -34,6 +37,7 @@ function App() {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [connectedUsers, setConnectedUsers] = useState([]);
 
   // History state for undo/redo functionality
   const [pathHistory, setPathHistory] = useState({
@@ -66,10 +70,41 @@ function App() {
       setIsLoading(true);
 
       // Initialize the socket connection
-      initializeSocket();
+      const socket = initializeSocket();
+
+      // Handle reconnection events
+      socket.on("reconnect", () => {
+        console.log("Socket reconnected, reloading data");
+        loadDrawings();
+      });
 
       // Set up socket listeners for real-time updates
-      initializeSocketListeners(setPaths, setStickyNotes, canvasRef);
+      initializeSocketListeners(
+        (newPaths) => {
+          // When receiving paths from the server, update the local state
+          // but don't add to history to avoid duplicate history entries
+          console.log(
+            "Setting paths from socket event:",
+            newPaths ? newPaths.length : 0,
+            "paths"
+          );
+
+          // Check if this is a clear operation (empty paths)
+          if (newPaths.length === 0) {
+            console.log("Received clear canvas operation from server");
+          }
+
+          // Update paths without affecting history
+          // This is important to prevent duplicate history entries
+          // when receiving updates from other clients
+          setPaths(newPaths);
+        },
+        setStickyNotes,
+        canvasRef
+      );
+
+      // Set up user presence listener
+      setupUserPresenceListener(setConnectedUsers);
 
       try {
         // Load existing drawings from the server
@@ -82,6 +117,15 @@ function App() {
     };
 
     setupApp();
+
+    // Cleanup function
+    return () => {
+      const socket = getSocket();
+      if (socket) {
+        socket.off("reconnect");
+        socket.off("user-presence-update");
+      }
+    };
   }, []);
 
   // Handle keyboard events for spacebar
@@ -272,10 +316,12 @@ function App() {
     // Update paths
     setPaths(previous);
 
-    // Sync with server
+    // Sync with server - ensure we're sending a complete drawing object
+    console.log("Syncing undo operation with server");
     sendDrawingData({
       paths: previous,
       stickyNotes,
+      operation: "undo", // Specify the operation type
     });
   };
 
@@ -296,10 +342,12 @@ function App() {
     // Update paths
     setPaths(next);
 
-    // Sync with server
+    // Sync with server - ensure we're sending a complete drawing object
+    console.log("Syncing redo operation with server");
     sendDrawingData({
       paths: next,
       stickyNotes,
+      operation: "redo", // Specify the operation type
     });
   };
 
@@ -314,16 +362,19 @@ function App() {
     // Clear the canvas by setting paths to empty array
     setPaths([]);
 
-    // Sync the empty paths array with the server
+    // Sync the empty paths array with the server using update-drawing
+    console.log("Syncing clear canvas operation with server");
     sendDrawingData({
       paths: [],
       stickyNotes,
+      operation: "clear", // Specify the operation type
     });
   };
 
   return (
     <main>
-      <InfoButton />
+      <InfoButton connectedUsers={connectedUsers} />
+      <UserPresence users={connectedUsers} />
       <div
         className="relative"
         style={{

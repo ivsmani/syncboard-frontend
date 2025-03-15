@@ -258,6 +258,7 @@ export const handleStopDrawing = (params) => {
 
   // Send the stop drawing event to the server
   if (paths && paths.length > 0) {
+    console.log("Sending stop drawing event with", paths.length, "paths");
     sendStopDrawingEvent(paths);
   }
 };
