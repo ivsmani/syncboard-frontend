@@ -34,8 +34,6 @@ export const initializeSocketListeners = (
 
   // Listen for drawing data from other clients
   socket.on("draw", (path) => {
-    console.log("Received drawing path:", path);
-
     // Update the paths state
     setPaths((prevPaths) => {
       const newPaths = [...prevPaths, path];
@@ -64,8 +62,6 @@ export const initializeSocketListeners = (
 
   // Listen for load drawing data
   socket.on("load-drawing", (data) => {
-    console.log("Received drawing data:", data);
-
     if (data && data.paths) {
       setPaths(data.paths);
       drawingDataCache.paths = data.paths;
@@ -92,7 +88,6 @@ export const initializeSocketListeners = (
 
   // Listen for sticky note events
   socket.on("load-sticky-notes", (notes) => {
-    console.log("Received sticky notes:", notes);
     if (Array.isArray(notes)) {
       setStickyNotes(notes);
       drawingDataCache.stickyNotes = notes;
@@ -100,7 +95,6 @@ export const initializeSocketListeners = (
   });
 
   socket.on("note-added", (note) => {
-    console.log("Received new sticky note:", note);
     if (note && note.id) {
       setStickyNotes((prevNotes) => {
         // Avoid duplicates
@@ -115,7 +109,6 @@ export const initializeSocketListeners = (
   });
 
   socket.on("sticky-note-deleted", (note) => {
-    console.log("Sticky note deleted:", note);
     if (note && note.id) {
       setStickyNotes((prevNotes) => {
         const newNotes = prevNotes.filter((n) => n.id !== note.id);
@@ -126,7 +119,6 @@ export const initializeSocketListeners = (
   });
 
   socket.on("updateNote", (note) => {
-    console.log("Sticky note updated:", note);
     if (note && note.id) {
       setStickyNotes((prevNotes) => {
         // Find the note to update
@@ -165,8 +157,6 @@ export const initializeSocketListeners = (
  * @returns {Promise<void>}
  */
 export const sendDrawingData = async (data) => {
-  console.log("Syncing data:", data); // Log the data for debugging
-
   // Update the cache
   drawingDataCache = data;
 

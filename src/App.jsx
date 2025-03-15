@@ -35,6 +35,12 @@ function App() {
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // History state for undo/redo functionality
+  const [pathHistory, setPathHistory] = useState({
+    past: [], // Stores previous states of paths
+    future: [], // Stores undone states for redo
+  });
+
   // Sticky notes state
   const [stickyNotes, setStickyNotes] = useState([]);
 
@@ -98,8 +104,23 @@ function App() {
 
   // Draw paths whenever they change
   useEffect(() => {
-    if (canvasRef.current && paths.length > 0) {
-      drawPaths(canvasRef.current, paths, gridSize, showGrid);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (paths.length > 0) {
+      // Draw paths if there are any
+      drawPaths(canvas, paths, gridSize, showGrid);
+    } else {
+      // Clear the canvas if paths array is empty
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Redraw the grid if it's enabled
+      if (showGrid) {
+        setupCanvas(canvas, ctx, gridSize, showGrid);
+      }
     }
   }, [paths, gridSize, showGrid]);
 
@@ -156,7 +177,22 @@ function App() {
       currentTool,
       canvasRef,
       currentColor,
-      setPaths,
+      setPaths: (newPathsFn) => {
+        // Call the original setPaths function
+        setPaths((prevPaths) => {
+          const updatedPaths = newPathsFn(prevPaths);
+
+          // If we're starting a new drawing, save the current state to history
+          if (updatedPaths.length > prevPaths.length) {
+            setPathHistory((history) => ({
+              past: [...history.past, prevPaths],
+              future: [], // Clear future when a new action is performed
+            }));
+          }
+
+          return updatedPaths;
+        });
+      },
       setIsDrawing,
       lastPointRef,
       handleCanvasClick,
@@ -219,6 +255,72 @@ function App() {
     deleteStickyNoteFromServer(noteToDelete);
   };
 
+  // Handle undo action
+  const handleUndo = () => {
+    if (pathHistory.past.length === 0) return; // Nothing to undo
+
+    // Get the last state from past
+    const previous = pathHistory.past[pathHistory.past.length - 1];
+    const newPast = pathHistory.past.slice(0, pathHistory.past.length - 1);
+
+    // Update history
+    setPathHistory({
+      past: newPast,
+      future: [paths, ...pathHistory.future],
+    });
+
+    // Update paths
+    setPaths(previous);
+
+    // Sync with server
+    sendDrawingData({
+      paths: previous,
+      stickyNotes,
+    });
+  };
+
+  // Handle redo action
+  const handleRedo = () => {
+    if (pathHistory.future.length === 0) return; // Nothing to redo
+
+    // Get the first state from future
+    const next = pathHistory.future[0];
+    const newFuture = pathHistory.future.slice(1);
+
+    // Update history
+    setPathHistory({
+      past: [...pathHistory.past, paths],
+      future: newFuture,
+    });
+
+    // Update paths
+    setPaths(next);
+
+    // Sync with server
+    sendDrawingData({
+      paths: next,
+      stickyNotes,
+    });
+  };
+
+  // Handle clear canvas action
+  const handleClearCanvas = () => {
+    // Save current state to history before clearing
+    setPathHistory((history) => ({
+      past: [...history.past, paths],
+      future: [], // Clear future when a new action is performed
+    }));
+
+    // Clear the canvas by setting paths to empty array
+    setPaths([]);
+
+    // Sync the empty paths array with the server
+    sendDrawingData({
+      paths: [],
+      stickyNotes,
+    });
+  };
+
   return (
     <main>
       <InfoButton />
@@ -278,6 +380,11 @@ function App() {
         setGridSize={setGridSize}
         showGrid={showGrid}
         setShowGrid={setShowGrid}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onClearCanvas={handleClearCanvas}
+        canUndo={pathHistory.past.length > 0}
+        canRedo={pathHistory.future.length > 0}
       />
     </main>
   );

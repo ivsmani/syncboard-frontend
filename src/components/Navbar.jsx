@@ -3,9 +3,24 @@ import {
   NoteBlank,
   Palette,
   GridFour,
+  ArrowCounterClockwise,
+  ArrowClockwise,
+  Eraser,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import ColorPicker from "./ColorPicker";
+
+// Simple Tooltip component
+const Tooltip = ({ text, children }) => {
+  return (
+    <div className="group relative flex">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+        {text}
+      </div>
+    </div>
+  );
+};
 
 const Navbar = ({
   currentTool,
@@ -16,6 +31,11 @@ const Navbar = ({
   setGridSize,
   showGrid,
   setShowGrid,
+  onUndo,
+  onRedo,
+  onClearCanvas,
+  canUndo,
+  canRedo,
 }) => {
   const [openColorPicker, setOpenColorPicker] = useState(false);
   const [showGridControls, setShowGridControls] = useState(false);
@@ -35,27 +55,79 @@ const Navbar = ({
   return (
     <div className="fixed bottom-8 left-[calc(50%-162px)] z-50 h-16 bg-white border border-gray-200 rounded-md">
       <div className="grid h-full max-w-lg grid-cols-4 mx-auto divide-x divide-gray-200">
-        <button
-          type="button"
-          className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 rounded-l-md cursor-pointer ${
-            currentTool === "pen" ? "bg-gray-50" : ""
-          }`}
-          onClick={() => setCurrentTool("pen")}
-        >
-          <PencilLine
-            size={24}
-            className="mb-1 text-gray-500"
-            weight={currentTool === "pen" ? "fill" : "regular"}
-            color={currentTool === "pen" ? "#973c00" : "#808080"}
-          />
-          <span
-            className={`text-xs ${
-              currentTool === "pen" ? "text-amber-800" : "text-gray-400"
+        <div className="relative">
+          {/* Undo/Redo/Clear buttons that appear above the pen tool when it's active */}
+          {currentTool === "pen" && (
+            <div className="absolute -top-12 left-0 right-0 flex justify-center space-x-2">
+              <Tooltip text="Undo last action">
+                <button
+                  type="button"
+                  className={`p-2 rounded-md ${
+                    canUndo
+                      ? "bg-white border border-gray-200 hover:bg-gray-50"
+                      : "bg-gray-100 cursor-not-allowed"
+                  }`}
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                >
+                  <ArrowCounterClockwise
+                    size={20}
+                    weight="bold"
+                    color={canUndo ? "#973c00" : "#cccccc"}
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip text="Redo last action">
+                <button
+                  type="button"
+                  className={`p-2 rounded-md ${
+                    canRedo
+                      ? "bg-white border border-gray-200 hover:bg-gray-50"
+                      : "bg-gray-100 cursor-not-allowed"
+                  }`}
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                >
+                  <ArrowClockwise
+                    size={20}
+                    weight="bold"
+                    color={canRedo ? "#973c00" : "#cccccc"}
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip text="Clear entire canvas">
+                <button
+                  type="button"
+                  className="p-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50"
+                  onClick={onClearCanvas}
+                >
+                  <Eraser size={20} weight="bold" color="#973c00" />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+          <button
+            type="button"
+            className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 rounded-l-md cursor-pointer w-full h-full ${
+              currentTool === "pen" ? "bg-gray-50" : ""
             }`}
+            onClick={() => setCurrentTool("pen")}
           >
-            Pen Tool
-          </span>
-        </button>
+            <PencilLine
+              size={24}
+              className="mb-1 text-gray-500"
+              weight={currentTool === "pen" ? "fill" : "regular"}
+              color={currentTool === "pen" ? "#973c00" : "#808080"}
+            />
+            <span
+              className={`text-xs ${
+                currentTool === "pen" ? "text-amber-800" : "text-gray-400"
+              }`}
+            >
+              Pen Tool
+            </span>
+          </button>
+        </div>
         <div className="relative">
           <button
             type="button"

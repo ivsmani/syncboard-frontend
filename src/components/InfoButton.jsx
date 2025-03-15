@@ -62,11 +62,11 @@ const Modal = memo(({ isOpen, onClose }) => {
   return (
     <div
       id="modal-backdrop"
-      className="fixed inset-0 flex items-center justify-center bg-black/70 z-[999]"
+      className="fixed inset-0 flex items-center justify-center bg-black/70 z-[9999]"
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white p-10 rounded-lg shadow-lg w-full max-w-2xl mx-4 relative"
+        className="bg-white p-6 md:p-10 rounded-lg shadow-lg w-full max-w-2xl mx-4 relative max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -77,9 +77,11 @@ const Modal = memo(({ isOpen, onClose }) => {
           <XCircle size={32} weight="fill" color="#99a1af" />
         </button>
 
-        <h2 className="text-4xl font-bold mb-4 text-center">SyncBoard</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">
+          SyncBoard
+        </h2>
 
-        <p className="text-center mb-10">
+        <p className="text-center mb-6 md:mb-10 text-sm md:text-base">
           A real-time whiteboard is a collaborative digital workspace that
           allows multiple users to draw, write, and share ideas simultaneously.
           It provides a seamless experience for brainstorming, teaching, remote
@@ -87,9 +89,11 @@ const Modal = memo(({ isOpen, onClose }) => {
         </p>
 
         <section className="flex flex-col">
-          <h3 className="text-xl font-bold mb-4 text-center">Our Team</h3>
-          <div className="mt-6 w-full">
-            <ul className="grid w-full grid-cols-1 sm:grid-cols-2 gap-4">
+          <h3 className="text-lg md:text-xl font-bold mb-4 text-center">
+            Our Team
+          </h3>
+          <div className="mt-4 md:mt-6 w-full">
+            <ul className="grid w-full grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               {teamMembers.map((member) => (
                 <TeamMember
                   key={member.id}
@@ -115,7 +119,7 @@ const InfoButton = () => {
   return (
     <>
       <button
-        className="fixed right-10 top-4 z-10 rounded-full shadow-md transition-colors duration-200 cursor-pointer"
+        className="fixed right-10 top-4 z-[9998] rounded-full shadow-md transition-colors duration-200 cursor-pointer"
         onClick={handleOpenModal}
         aria-label="Show information"
         title="About SyncBoard"
