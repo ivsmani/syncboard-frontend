@@ -51,6 +51,7 @@ function App() {
   // Use refs to store panning state to avoid re-renders during panning
   const panningRef = useRef({
     isPanning: false,
+    isTouchPanning: false,
     startX: 0,
     startY: 0,
     scrollLeft: 0,
@@ -175,6 +176,12 @@ function App() {
 
     // This function prevents default touch behavior like scrolling
     const preventDefaultTouch = (e) => {
+      // Allow default behavior for two-finger gestures when not in pen mode
+      if (e.touches && e.touches.length === 2) {
+        // Don't prevent default for two-finger gestures
+        return;
+      }
+
       if (currentTool === "pen") {
         e.preventDefault();
       }

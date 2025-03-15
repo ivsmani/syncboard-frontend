@@ -46,6 +46,21 @@ export const getEventCoordinates = (e, canvas) => {
 };
 
 /**
+ * Get the center point between two touches
+ * @param {TouchList} touches - The touch list from a touch event
+ * @returns {Object} Center point with clientX and clientY properties
+ */
+export const getTouchCenter = (touches) => {
+  const touch1 = touches[0];
+  const touch2 = touches[1];
+
+  return {
+    clientX: (touch1.clientX + touch2.clientX) / 2,
+    clientY: (touch1.clientY + touch2.clientY) / 2,
+  };
+};
+
+/**
  * Handle starting a drawing operation
  * @param {Event} e - Mouse or touch event
  * @param {Object} params - Parameters for drawing
@@ -64,6 +79,28 @@ export const handleStartDrawing = (e, params) => {
     handleCanvasClick,
   } = params;
 
+  // Check for two-finger touch (for panning on mobile)
+  if (e.touches && e.touches.length === 2) {
+    e.preventDefault();
+
+    // Start panning with two fingers
+    panningRef.current.isPanning = true;
+    panningRef.current.isTouchPanning = true;
+
+    // Get the center point between the two touches
+    const centerPoint = getTouchCenter(e.touches);
+    panningRef.current.startX = centerPoint.clientX;
+    panningRef.current.startY = centerPoint.clientY;
+
+    // Store current scroll position
+    panningRef.current.scrollLeft =
+      window.pageXOffset || document.documentElement.scrollLeft;
+    panningRef.current.scrollTop =
+      window.pageYOffset || document.documentElement.scrollTop;
+
+    return;
+  }
+
   // Prevent default behavior for touch events to avoid scrolling
   if (e.touches) {
     e.preventDefault();
@@ -78,6 +115,7 @@ export const handleStartDrawing = (e, params) => {
   if (isSpacePressed) {
     // Start panning - use the ref for direct manipulation
     panningRef.current.isPanning = true;
+    panningRef.current.isTouchPanning = false;
     panningRef.current.startX = coords.clientX;
     panningRef.current.startY = coords.clientY;
     panningRef.current.scrollLeft =
@@ -154,6 +192,31 @@ export const handleDraw = (e, params) => {
     gridSize,
     showGrid,
   } = params;
+
+  // Handle two-finger panning on mobile
+  if (
+    e.touches &&
+    e.touches.length === 2 &&
+    panningRef.current.isPanning &&
+    panningRef.current.isTouchPanning
+  ) {
+    e.preventDefault();
+
+    // Get the center point between the two touches
+    const centerPoint = getTouchCenter(e.touches);
+
+    // Calculate how far the touch center has moved
+    const dx = centerPoint.clientX - panningRef.current.startX;
+    const dy = centerPoint.clientY - panningRef.current.startY;
+
+    // Use window.scrollTo to scroll the body in both directions
+    const newScrollX = panningRef.current.scrollLeft - dx;
+    const newScrollY = panningRef.current.scrollTop - dy;
+
+    window.scrollTo(newScrollX, newScrollY);
+
+    return;
+  }
 
   // Prevent default behavior for touch events to avoid scrolling
   if (e.touches) {
@@ -246,6 +309,7 @@ export const handleStopDrawing = (params) => {
 
   if (panningRef.current.isPanning) {
     panningRef.current.isPanning = false;
+    panningRef.current.isTouchPanning = false;
     document.body.style.cursor = isSpacePressed ? "grab" : "default";
     return;
   }

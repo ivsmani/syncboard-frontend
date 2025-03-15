@@ -22,4 +22,9 @@ body {
   #syncboard-canvas {
     cursor: crosshair; /* Better cursor for drawing on touch devices */
   }
+
+  /* Ensure the canvas container doesn't interfere with touch events */
+  main > div {
+    touch-action: none;
+  }
 }
