@@ -7,7 +7,7 @@ import {
   ArrowClockwise,
   Eraser,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import ColorPicker from "./ColorPicker";
 
 // Simple Tooltip component
@@ -39,6 +39,8 @@ const Navbar = ({
 }) => {
   const [openColorPicker, setOpenColorPicker] = useState(false);
   const [showGridControls, setShowGridControls] = useState(false);
+  const gridControlsRef = useRef(null);
+  const gridButtonRef = useRef(null);
 
   const handleColorChange = (color) => {
     setCurrentColor(color);
@@ -51,6 +53,26 @@ const Navbar = ({
   const toggleGrid = () => {
     setShowGrid(!showGrid);
   };
+
+  // Handle click outside to close grid controls
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        showGridControls &&
+        gridControlsRef.current &&
+        !gridControlsRef.current.contains(event.target) &&
+        gridButtonRef.current &&
+        !gridButtonRef.current.contains(event.target)
+      ) {
+        setShowGridControls(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showGridControls]);
 
   return (
     <div className="fixed bottom-8 left-[calc(50%-162px)] z-50 h-16 bg-white border border-gray-200 rounded-md">
@@ -153,6 +175,7 @@ const Navbar = ({
         <div className="relative">
           <button
             type="button"
+            ref={gridButtonRef}
             className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 cursor-pointer h-full w-full`}
             onClick={() => setShowGridControls(!showGridControls)}
           >
@@ -166,7 +189,10 @@ const Navbar = ({
           </button>
 
           {showGridControls && (
-            <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white p-3 rounded-md shadow-lg border border-gray-200">
+            <div
+              ref={gridControlsRef}
+              className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white p-3 rounded-md shadow-lg border border-gray-200"
+            >
               <div className="flex flex-col items-center">
                 <div className="flex items-center justify-between w-full mb-2">
                   <span className="text-xs text-gray-500">Show Grid</span>
