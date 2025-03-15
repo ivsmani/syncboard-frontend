@@ -3,6 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import InfoButton from "./components/InfoButton";
 import StickyNoteContainer from "./components/StickyNoteContainer";
 
+// Define canvas dimensions as constants
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+
 // Import utility functions from the index file
 import {
   drawPaths,
@@ -47,12 +51,6 @@ function App() {
   const [gridSize, setGridSize] = useState(20); // Grid cell size in pixels
   const [showGrid, setShowGrid] = useState(true); // Control grid visibility
 
-  // Set up the canvas size when the component mounts
-  const [canvasDimensions, setCanvasDimensions] = useState({
-    width: 0,
-    height: 0,
-  });
-
   // Last point for throttling
   const lastPointRef = useRef({ x: 0, y: 0 });
 
@@ -95,7 +93,7 @@ function App() {
     if (!canvas) return;
 
     // Use the canvas utility to set up the canvas
-    setupCanvas(canvas, setCanvasDimensions, gridSize, showGrid);
+    setupCanvas(canvas, null, gridSize, showGrid);
   }, [gridSize, showGrid]);
 
   // Draw paths whenever they change
@@ -194,7 +192,11 @@ function App() {
     <main>
       <InfoButton />
       <div
-        className="h-screen w-screen overflow-auto relative"
+        className="relative"
+        style={{
+          width: `${CANVAS_WIDTH}px`,
+          height: `${CANVAS_HEIGHT}px`,
+        }}
         ref={containerRef}
       >
         {isLoading ? (
@@ -209,9 +211,8 @@ function App() {
           style={{
             minWidth: "100%",
             minHeight: "100%",
-            width: canvasDimensions.width > 0 ? canvasDimensions.width : "100%",
-            height:
-              canvasDimensions.height > 0 ? canvasDimensions.height : "100%",
+            width: `${CANVAS_WIDTH}px`,
+            height: `${CANVAS_HEIGHT}px`,
           }}
         >
           <canvas
@@ -230,7 +231,6 @@ function App() {
             notes={stickyNotes}
             onDeleteNote={handleDeleteStickyNote}
             onUpdateNote={handleUpdateStickyNote}
-            canvasDimensions={canvasDimensions}
           />
         </div>
       </div>

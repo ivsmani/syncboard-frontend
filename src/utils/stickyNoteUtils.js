@@ -1,6 +1,14 @@
 // Sticky note utility functions
 import { v4 as uuidv4 } from "uuid";
 
+// Define canvas dimensions as constants
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+
+// Define sticky note dimensions - match the w-64 and h-64 classes (16rem = 256px)
+const NOTE_WIDTH = 256;
+const NOTE_HEIGHT = 256;
+
 /**
  * Create a new sticky note
  * @param {Event} e - Mouse event
@@ -13,12 +21,21 @@ export const createStickyNote = (e, containerRef) => {
   const scrollLeft = container ? container.scrollLeft : 0;
   const scrollTop = container ? container.scrollTop : 0;
 
-  // Store the absolute position (including scroll offset)
+  // Calculate absolute position on the canvas (including scroll offset)
+  let posX = e.nativeEvent.offsetX + scrollLeft;
+  let posY = e.nativeEvent.offsetY + scrollTop;
+
+  // Apply boundary limits to keep the note within the canvas
+  // Ensure the note stays completely within the canvas boundaries
+  posX = Math.max(0, Math.min(CANVAS_WIDTH - NOTE_WIDTH, posX));
+  posY = Math.max(0, Math.min(CANVAS_HEIGHT - NOTE_HEIGHT, posY));
+
+  // Return the absolute position on the canvas (not affected by scroll)
   return {
     id: uuidv4(),
     position: {
-      x: e.nativeEvent.offsetX + scrollLeft,
-      y: e.nativeEvent.offsetY + scrollTop,
+      x: posX,
+      y: posY,
     },
     content: "",
   };

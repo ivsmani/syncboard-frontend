@@ -1,15 +1,19 @@
 import StickyNote from "./StickyNote";
 import { useRef, useEffect, useState } from "react";
 
-const StickyNoteContainer = ({
-  notes,
-  onDeleteNote,
-  onUpdateNote,
-  canvasDimensions,
-}) => {
+// Define canvas dimensions as constants
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+
+// Default dimensions for sticky notes
+const DEFAULT_NOTE_WIDTH = 256;
+const DEFAULT_NOTE_HEIGHT = 256;
+
+const StickyNoteContainer = ({ notes, onDeleteNote, onUpdateNote }) => {
   const containerRef = useRef(null);
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
   const scrollableParentRef = useRef(null);
+  const lastScrollOffsetRef = useRef({ x: 0, y: 0 });
 
   // Get the parent scrollable container
   useEffect(() => {
@@ -30,10 +34,19 @@ const StickyNoteContainer = ({
     const updateScrollPosition = () => {
       if (!scrollableParentRef.current) return;
 
-      setScrollOffset({
+      const newScrollOffset = {
         x: scrollableParentRef.current.scrollLeft,
         y: scrollableParentRef.current.scrollTop,
-      });
+      };
+
+      // Only update if the scroll position has actually changed
+      if (
+        newScrollOffset.x !== lastScrollOffsetRef.current.x ||
+        newScrollOffset.y !== lastScrollOffsetRef.current.y
+      ) {
+        lastScrollOffsetRef.current = newScrollOffset;
+        setScrollOffset(newScrollOffset);
+      }
     };
 
     // Find the scrollable parent once and store it
@@ -44,13 +57,19 @@ const StickyNoteContainer = ({
 
     // Add scroll event listener to the scrollable parent
     if (scrollableParentRef.current) {
+      // Use passive event listener for better performance
       scrollableParentRef.current.addEventListener(
         "scroll",
-        updateScrollPosition
+        updateScrollPosition,
+        {
+          passive: true,
+        }
       );
 
       // Also listen for resize events which might affect scroll position
-      window.addEventListener("resize", updateScrollPosition);
+      window.addEventListener("resize", updateScrollPosition, {
+        passive: true,
+      });
 
       return () => {
         scrollableParentRef.current.removeEventListener(
@@ -69,10 +88,8 @@ const StickyNoteContainer = ({
       ref={containerRef}
       className="sticky-note-container absolute inset-0 pointer-events-none z-10"
       style={{
-        width:
-          canvasDimensions.width > 0 ? `${canvasDimensions.width}px` : "100%",
-        height:
-          canvasDimensions.height > 0 ? `${canvasDimensions.height}px` : "100%",
+        width: `${CANVAS_WIDTH}px`,
+        height: `${CANVAS_HEIGHT}px`,
         minWidth: "100%",
         minHeight: "100%",
       }}
@@ -88,8 +105,8 @@ const StickyNoteContainer = ({
         // This is an optimization to avoid rendering notes that are far outside the viewport
         const buffer = 500; // Buffer area around viewport to render notes
         const isNearViewport =
-          visiblePosition.x > -buffer &&
-          visiblePosition.y > -buffer &&
+          visiblePosition.x > -buffer - DEFAULT_NOTE_WIDTH &&
+          visiblePosition.y > -buffer - DEFAULT_NOTE_HEIGHT &&
           visiblePosition.x < window.innerWidth + buffer &&
           visiblePosition.y < window.innerHeight + buffer;
 

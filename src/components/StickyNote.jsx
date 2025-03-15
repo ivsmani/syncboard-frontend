@@ -1,30 +1,34 @@
 import { useState, useRef, useEffect } from "react";
 import { X } from "@phosphor-icons/react";
 
+// Define canvas dimensions as constants
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+
+// Default dimensions for sticky notes - match the w-64 and h-64 classes (16rem = 256px)
+const DEFAULT_NOTE_WIDTH = 256;
+const DEFAULT_NOTE_HEIGHT = 256;
+
 const StickyNote = ({
   id,
   initialPosition,
   initialContent = "",
   onDelete,
   onUpdate,
-  scrollOffset,
 }) => {
   const [position, setPosition] = useState(initialPosition);
   const [content, setContent] = useState(initialContent);
   const [isDragging, setIsDragging] = useState(false);
   const noteRef = useRef(null);
 
+  // Store note dimensions
+  const [noteDimensions, setNoteDimensions] = useState({
+    width: DEFAULT_NOTE_WIDTH,
+    height: DEFAULT_NOTE_HEIGHT,
+  });
+
   // Store the initial drag start position
   const dragStartRef = useRef({ x: 0, y: 0 });
-
-  // Store the initial scroll offset at the start of dragging
-  const initialScrollRef = useRef({ x: 0, y: 0 });
-
-  // Store the absolute position (in canvas coordinates)
-  const absolutePositionRef = useRef({
-    x: initialPosition.x + scrollOffset.x,
-    y: initialPosition.y + scrollOffset.y,
-  });
 
   // Debounce timer for content updates
   const contentUpdateTimerRef = useRef(null);
@@ -35,6 +39,45 @@ const StickyNote = ({
 
   // Track if content has been updated from external source
   const contentUpdatedExternallyRef = useRef(false);
+
+  // Measure note dimensions once on mount
+  useEffect(() => {
+    if (noteRef.current) {
+      const width = noteRef.current.offsetWidth;
+      const height = noteRef.current.offsetHeight;
+      setNoteDimensions({ width, height });
+    }
+  }, []);
+
+  // Ensure existing notes stay within boundaries when loaded
+  useEffect(() => {
+    // Only run this once on initial load
+    if (noteRef.current && !isDragging) {
+      // Get the current position
+      const currentX = position.x;
+      const currentY = position.y;
+
+      // Calculate the boundaries
+      const maxX = CANVAS_WIDTH - noteDimensions.width;
+      const maxY = CANVAS_HEIGHT - noteDimensions.height;
+
+      // Check if the note is outside the boundaries
+      if (currentX < 0 || currentX > maxX || currentY < 0 || currentY > maxY) {
+        // Apply boundary constraints
+        const newX = Math.max(0, Math.min(maxX, currentX));
+        const newY = Math.max(0, Math.min(maxY, currentY));
+
+        // Update the position
+        setPosition({ x: newX, y: newY });
+
+        // Notify parent of the position update
+        onUpdate(id, {
+          position: { x: newX, y: newY },
+          content,
+        });
+      }
+    }
+  }, [noteDimensions]);
 
   // Handle dragging
   const handleMouseDown = (e) => {
@@ -50,9 +93,6 @@ const StickyNote = ({
 
       // Store the current mouse position as the drag start position
       dragStartRef.current = { x: e.clientX, y: e.clientY };
-
-      // Store the current scroll offset at the start of dragging
-      initialScrollRef.current = { ...scrollOffset };
     }
   };
 
@@ -62,30 +102,27 @@ const StickyNote = ({
       const mouseDeltaX = e.clientX - dragStartRef.current.x;
       const mouseDeltaY = e.clientY - dragStartRef.current.y;
 
-      // Calculate the scroll delta since the start of the drag
-      const scrollDeltaX = scrollOffset.x - initialScrollRef.current.x;
-      const scrollDeltaY = scrollOffset.y - initialScrollRef.current.y;
+      // Calculate new position
+      let newX = position.x + mouseDeltaX;
+      let newY = position.y + mouseDeltaY;
 
-      // Calculate new visible position based on the initial position, mouse movement, and scroll change
-      const newVisibleX = initialPosition.x + mouseDeltaX;
-      const newVisibleY = initialPosition.y + mouseDeltaY;
+      // Apply boundary limits to keep the note within the canvas
+      // Use the actual measured dimensions for accurate boundary calculation
+      newX = Math.max(0, Math.min(CANVAS_WIDTH - noteDimensions.width, newX));
+      newY = Math.max(0, Math.min(CANVAS_HEIGHT - noteDimensions.height, newY));
 
-      // Update local position state (visible position)
-      setPosition({ x: newVisibleX, y: newVisibleY });
+      // Update local position state
+      setPosition({ x: newX, y: newY });
 
-      // Calculate the new absolute position in canvas coordinates
-      // This accounts for both mouse movement and scroll changes
-      const newAbsoluteX =
-        absolutePositionRef.current.x + mouseDeltaX + scrollDeltaX;
-      const newAbsoluteY =
-        absolutePositionRef.current.y + mouseDeltaY + scrollDeltaY;
+      // Update drag start position for the next move event
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
 
       // Throttle position updates to the server to improve performance
       if (!positionUpdateTimerRef.current) {
         positionUpdateTimerRef.current = setTimeout(() => {
-          // Update the position in the parent component with the absolute position
+          // Update the position in the parent component
           onUpdate(id, {
-            position: { x: newAbsoluteX, y: newAbsoluteY },
+            position: { x: newX, y: newY },
             content,
           });
           positionUpdateTimerRef.current = null;
@@ -94,7 +131,7 @@ const StickyNote = ({
     }
   };
 
-  const handleMouseUp = (e) => {
+  const handleMouseUp = () => {
     if (isDragging) {
       // Clear any pending position update timer
       if (positionUpdateTimerRef.current) {
@@ -102,26 +139,9 @@ const StickyNote = ({
         positionUpdateTimerRef.current = null;
       }
 
-      // Calculate the final position
-      const mouseDeltaX = e.clientX - dragStartRef.current.x;
-      const mouseDeltaY = e.clientY - dragStartRef.current.y;
-      const scrollDeltaX = scrollOffset.x - initialScrollRef.current.x;
-      const scrollDeltaY = scrollOffset.y - initialScrollRef.current.y;
-
-      const finalAbsoluteX =
-        absolutePositionRef.current.x + mouseDeltaX + scrollDeltaX;
-      const finalAbsoluteY =
-        absolutePositionRef.current.y + mouseDeltaY + scrollDeltaY;
-
-      // Update the absolute position reference with the final position
-      absolutePositionRef.current = {
-        x: finalAbsoluteX,
-        y: finalAbsoluteY,
-      };
-
       // Send the final position update
       onUpdate(id, {
-        position: absolutePositionRef.current,
+        position,
         content,
         isFinalPosition: true,
       });
@@ -154,7 +174,7 @@ const StickyNote = ({
     contentUpdateTimerRef.current = setTimeout(() => {
       // Send a final content update to be saved to the database
       onUpdate(id, {
-        position: absolutePositionRef.current,
+        position,
         content: newContent,
         isFinalContent: true, // Mark this as the final content update
       });
@@ -175,16 +195,12 @@ const StickyNote = ({
     e.stopPropagation();
   };
 
-  // Update position when initialPosition or scrollOffset changes
+  // Update position when initialPosition changes (from other users)
   useEffect(() => {
     if (!isDragging) {
       setPosition(initialPosition);
-      absolutePositionRef.current = {
-        x: initialPosition.x + scrollOffset.x,
-        y: initialPosition.y + scrollOffset.y,
-      };
     }
-  }, [initialPosition, scrollOffset, isDragging]);
+  }, [initialPosition, isDragging]);
 
   // Update content when initialContent changes (from other users)
   useEffect(() => {
@@ -206,7 +222,7 @@ const StickyNote = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, scrollOffset, content]);
+  }, [isDragging, position, content]);
 
   // Clean up the debounce timer when the component unmounts
   useEffect(() => {

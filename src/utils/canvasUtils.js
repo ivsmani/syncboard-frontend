@@ -1,5 +1,9 @@
 // Canvas utility functions
 
+// Define canvas dimensions as constants
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+
 /**
  * Draws a grid on the canvas
  * @param {CanvasRenderingContext2D} ctx - Canvas context
@@ -111,25 +115,22 @@ export const setupCanvas = (
 ) => {
   if (!canvas) return { width: 0, height: 0 };
 
-  // Set canvas dimensions to be larger than most screens
-  const canvasWidth = Math.max(1920, window.innerWidth);
-  const canvasHeight = Math.max(1080, window.innerHeight);
-
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
+  // Set canvas dimensions to fixed size
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
 
   // Update canvas dimensions state if setter provided
   if (setCanvasDimensions) {
-    setCanvasDimensions({ width: canvasWidth, height: canvasHeight });
+    setCanvasDimensions({ width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
   }
 
   // Initialize canvas with a white background
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
   // Draw the grid
-  drawGrid(ctx, canvasWidth, canvasHeight, gridSize, showGrid);
+  drawGrid(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, gridSize, showGrid);
 
-  return { width: canvasWidth, height: canvasHeight };
+  return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
 };
