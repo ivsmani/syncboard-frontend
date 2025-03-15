@@ -15,8 +15,39 @@ export const calculateDistance = (point1, point2) => {
 };
 
 /**
+ * Get coordinates from either mouse or touch event
+ * @param {Event} e - Mouse or touch event
+ * @param {HTMLElement} canvas - Canvas element
+ * @returns {Object} Coordinates with x, y properties
+ */
+export const getEventCoordinates = (e, canvas) => {
+  // Check if it's a touch event
+  if (e.touches && e.touches.length > 0) {
+    // Get the first touch
+    const touch = e.touches[0];
+    // Get the bounding rectangle of the canvas
+    const rect = canvas.getBoundingClientRect();
+    // Calculate the touch position relative to the canvas
+    return {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    };
+  }
+
+  // It's a mouse event
+  return {
+    x: e.nativeEvent.offsetX,
+    y: e.nativeEvent.offsetY,
+    clientX: e.clientX,
+    clientY: e.clientY,
+  };
+};
+
+/**
  * Handle starting a drawing operation
- * @param {Event} e - Mouse event
+ * @param {Event} e - Mouse or touch event
  * @param {Object} params - Parameters for drawing
  * @returns {Object} Updated state
  */
@@ -33,11 +64,22 @@ export const handleStartDrawing = (e, params) => {
     handleCanvasClick,
   } = params;
 
+  // Prevent default behavior for touch events to avoid scrolling
+  if (e.touches) {
+    e.preventDefault();
+  }
+
+  const canvas = canvasRef.current;
+  if (!canvas) return;
+
+  // Get coordinates from either mouse or touch event
+  const coords = getEventCoordinates(e, canvas);
+
   if (isSpacePressed) {
     // Start panning - use the ref for direct manipulation
     panningRef.current.isPanning = true;
-    panningRef.current.startX = e.clientX;
-    panningRef.current.startY = e.clientY;
+    panningRef.current.startX = coords.clientX;
+    panningRef.current.startY = coords.clientY;
     panningRef.current.scrollLeft = params.containerRef.current.scrollLeft;
     panningRef.current.scrollTop = params.containerRef.current.scrollTop;
 
@@ -46,14 +88,25 @@ export const handleStartDrawing = (e, params) => {
   }
 
   if (currentTool === "sticky") {
-    // Handle sticky note creation on mousedown
-    handleCanvasClick(e);
+    // For touch events, create a simulated mouse event for sticky note creation
+    const simulatedEvent = e.touches
+      ? {
+          clientX: coords.clientX,
+          clientY: coords.clientY,
+          nativeEvent: {
+            offsetX: coords.x,
+            offsetY: coords.y,
+          },
+        }
+      : e;
+
+    // Handle sticky note creation
+    handleCanvasClick(simulatedEvent);
     return;
   }
 
   if (currentTool !== "pen") return; // Only allow drawing with the pen tool
 
-  const canvas = canvasRef.current;
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.strokeStyle = currentColor; // Set the current color
   ctx.lineWidth = 2.5; // Match the line width in drawPaths
@@ -66,7 +119,7 @@ export const handleStartDrawing = (e, params) => {
 
   ctx.beginPath();
 
-  const startPoint = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }; // Get starting point
+  const startPoint = { x: coords.x, y: coords.y }; // Get starting point
   ctx.moveTo(startPoint.x, startPoint.y);
   setIsDrawing(true); // Set drawing state to true
 
@@ -81,8 +134,8 @@ export const handleStartDrawing = (e, params) => {
 };
 
 /**
- * Handle drawing as mouse moves
- * @param {Event} e - Mouse event
+ * Handle drawing as mouse or touch moves
+ * @param {Event} e - Mouse or touch event
  * @param {Object} params - Parameters for drawing
  */
 export const handleDraw = (e, params) => {
@@ -100,15 +153,26 @@ export const handleDraw = (e, params) => {
     showGrid,
   } = params;
 
+  // Prevent default behavior for touch events to avoid scrolling
+  if (e.touches) {
+    e.preventDefault();
+  }
+
+  const canvas = canvasRef.current;
+  if (!canvas) return;
+
+  // Get coordinates from either mouse or touch event
+  const coords = getEventCoordinates(e, canvas);
+
   // Use the ref for checking panning state to avoid render delays
   if (panningRef.current.isPanning && isSpacePressed) {
     // Handle panning using direct DOM manipulation
     const container = params.containerRef.current;
     if (!container) return;
 
-    // Calculate how far the mouse has moved from the start position
-    const dx = e.clientX - panningRef.current.startX;
-    const dy = e.clientY - panningRef.current.startY;
+    // Calculate how far the mouse/touch has moved from the start position
+    const dx = coords.clientX - panningRef.current.startX;
+    const dy = coords.clientY - panningRef.current.startY;
 
     // Set the scroll position directly
     container.scrollLeft = panningRef.current.scrollLeft - dx;
@@ -119,7 +183,7 @@ export const handleDraw = (e, params) => {
 
   if (!isDrawing || currentTool !== "pen") return; // Only draw if currently drawing with the pen
 
-  const currentPoint = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }; // Get current point
+  const currentPoint = { x: coords.x, y: coords.y }; // Get current point
 
   // Calculate distance from last point to implement a minimum distance threshold
   const lastPoint = lastPointRef.current;

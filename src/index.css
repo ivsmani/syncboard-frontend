@@ -4,4 +4,22 @@ body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  overscroll-behavior: none; /* Prevent pull-to-refresh on mobile */
+  touch-action: manipulation; /* Disable double-tap to zoom */
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+}
+
+/* Optimize canvas for touch devices */
+#syncboard-canvas {
+  touch-action: none; /* Disable browser handling of all touch gestures */
+  -webkit-touch-callout: none; /* Disable callout */
+  -webkit-user-select: none; /* Disable selection */
+  user-select: none;
+}
+
+/* Add specific styles for mobile devices */
+@media (max-width: 768px) {
+  #syncboard-canvas {
+    cursor: crosshair; /* Better cursor for drawing on touch devices */
+  }
 }

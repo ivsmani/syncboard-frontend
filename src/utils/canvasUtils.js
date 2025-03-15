@@ -100,37 +100,49 @@ export const drawPaths = (canvas, paths, gridSize, showGrid) => {
 };
 
 /**
- * Sets up the canvas with initial dimensions and background
+ * Check if the device supports touch events
+ * @returns {boolean} True if touch is supported
+ */
+export const isTouchDevice = () => {
+  return (
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0 ||
+    navigator.msMaxTouchPoints > 0
+  );
+};
+
+/**
+ * Sets up the canvas with the correct dimensions and initial state
  * @param {HTMLCanvasElement} canvas - Canvas element
- * @param {Function} setCanvasDimensions - State setter for canvas dimensions
+ * @param {CanvasRenderingContext2D} ctx - Canvas context (optional)
  * @param {number} gridSize - Size of grid cells
  * @param {boolean} showGrid - Whether to show the grid
- * @returns {Object} Canvas dimensions
  */
-export const setupCanvas = (
-  canvas,
-  setCanvasDimensions,
-  gridSize,
-  showGrid
-) => {
-  if (!canvas) return { width: 0, height: 0 };
+export const setupCanvas = (canvas, ctx, gridSize, showGrid) => {
+  if (!canvas) return;
 
-  // Set canvas dimensions to fixed size
+  // Get the canvas context if not provided
+  ctx = ctx || canvas.getContext("2d", { alpha: false });
+
+  // Set canvas dimensions to match the defined constants
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  // Update canvas dimensions state if setter provided
-  if (setCanvasDimensions) {
-    setCanvasDimensions({ width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+  // Optimize canvas for touch devices
+  if (isTouchDevice()) {
+    // Increase the line width slightly for touch devices for better visibility
+    ctx.lineWidth = 3;
+
+    // Set higher precision for touch devices
+    canvas.style.touchAction = "none";
+  } else {
+    ctx.lineWidth = 2.5;
   }
 
-  // Initialize canvas with a white background
-  const ctx = canvas.getContext("2d");
+  // Set initial canvas state
   ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Draw the grid
-  drawGrid(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, gridSize, showGrid);
-
-  return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
+  drawGrid(ctx, canvas.width, canvas.height, gridSize, showGrid);
 };

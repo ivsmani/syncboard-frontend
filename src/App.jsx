@@ -103,6 +103,37 @@ function App() {
     }
   }, [paths, gridSize, showGrid]);
 
+  // Add passive touch event listeners to prevent default behavior
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // This function prevents default touch behavior like scrolling
+    const preventDefaultTouch = (e) => {
+      if (currentTool === "pen") {
+        e.preventDefault();
+      }
+    };
+
+    // Add the event listener with passive: false to allow preventDefault
+    canvas.addEventListener("touchstart", preventDefaultTouch, {
+      passive: false,
+    });
+    canvas.addEventListener("touchmove", preventDefaultTouch, {
+      passive: false,
+    });
+    canvas.addEventListener("touchend", preventDefaultTouch, {
+      passive: false,
+    });
+
+    // Clean up the event listeners
+    return () => {
+      canvas.removeEventListener("touchstart", preventDefaultTouch);
+      canvas.removeEventListener("touchmove", preventDefaultTouch);
+      canvas.removeEventListener("touchend", preventDefaultTouch);
+    };
+  }, [currentTool, canvasRef]);
+
   // Handle canvas click for different tools
   const handleCanvasClick = (e) => {
     if (currentTool === "sticky") {
@@ -219,11 +250,15 @@ function App() {
             id="syncboard-canvas"
             ref={canvasRef}
             className="absolute inset-0"
-            style={{ touchAction: "auto" }}
+            style={{ touchAction: "none" }}
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
             onMouseOut={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+            onTouchCancel={stopDrawing}
           />
 
           {/* Sticky Notes Layer */}
