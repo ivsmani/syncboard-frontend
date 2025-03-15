@@ -40,14 +40,24 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
     }
   };
 
+  // Prevent spacebar from scrolling the page
+  const handleWindowScroll = (e) => {
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault();
+      return false;
+    }
+  };
+
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
   window.addEventListener("keypress", handleKeyPress);
+  window.addEventListener("keydown", handleWindowScroll, { passive: false });
 
   // Return cleanup function
   return () => {
     window.removeEventListener("keydown", handleKeyDown);
     window.removeEventListener("keyup", handleKeyUp);
     window.removeEventListener("keypress", handleKeyPress);
+    window.removeEventListener("keydown", handleWindowScroll);
   };
 };

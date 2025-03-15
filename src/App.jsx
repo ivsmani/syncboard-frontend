@@ -372,7 +372,10 @@ function App() {
   };
 
   return (
-    <main>
+    <main
+      className="overflow-visible"
+      style={{ minWidth: `${CANVAS_WIDTH}px` }}
+    >
       <InfoButton connectedUsers={connectedUsers} />
       <UserPresence users={connectedUsers} />
       <div

@@ -80,8 +80,10 @@ export const handleStartDrawing = (e, params) => {
     panningRef.current.isPanning = true;
     panningRef.current.startX = coords.clientX;
     panningRef.current.startY = coords.clientY;
-    panningRef.current.scrollLeft = params.containerRef.current.scrollLeft;
-    panningRef.current.scrollTop = params.containerRef.current.scrollTop;
+    panningRef.current.scrollLeft =
+      window.pageXOffset || document.documentElement.scrollLeft;
+    panningRef.current.scrollTop =
+      window.pageYOffset || document.documentElement.scrollTop;
 
     document.body.style.cursor = "grabbing";
     return;
@@ -166,17 +168,15 @@ export const handleDraw = (e, params) => {
 
   // Use the ref for checking panning state to avoid render delays
   if (panningRef.current.isPanning && isSpacePressed) {
-    // Handle panning using direct DOM manipulation
-    const container = params.containerRef.current;
-    if (!container) return;
-
     // Calculate how far the mouse/touch has moved from the start position
     const dx = coords.clientX - panningRef.current.startX;
     const dy = coords.clientY - panningRef.current.startY;
 
-    // Set the scroll position directly
-    container.scrollLeft = panningRef.current.scrollLeft - dx;
-    container.scrollTop = panningRef.current.scrollTop - dy;
+    // Use window.scrollTo to scroll the body in both directions
+    const newScrollX = panningRef.current.scrollLeft - dx;
+    const newScrollY = panningRef.current.scrollTop - dy;
+
+    window.scrollTo(newScrollX, newScrollY);
 
     return;
   }
