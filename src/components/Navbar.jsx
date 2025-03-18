@@ -3,9 +3,6 @@ import {
   NoteBlank,
   Palette,
   GridFour,
-  ArrowCounterClockwise,
-  ArrowClockwise,
-  Eraser,
 } from "@phosphor-icons/react";
 import { useState, useEffect, useRef } from "react";
 import ColorPicker from "./ColorPicker";
@@ -15,7 +12,7 @@ const Tooltip = ({ text, children }) => {
   return (
     <div className="group relative flex">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
         {text}
       </div>
     </div>
@@ -31,16 +28,13 @@ const Navbar = ({
   setGridSize,
   showGrid,
   setShowGrid,
-  onUndo,
-  onRedo,
-  onClearCanvas,
-  canUndo,
-  canRedo,
 }) => {
   const [openColorPicker, setOpenColorPicker] = useState(false);
   const [showGridControls, setShowGridControls] = useState(false);
   const gridControlsRef = useRef(null);
   const gridButtonRef = useRef(null);
+  const colorButtonRef = useRef(null);
+  const colorPickerRef = useRef(null);
 
   const handleColorChange = (color) => {
     setCurrentColor(color);
@@ -54,9 +48,10 @@ const Navbar = ({
     setShowGrid(!showGrid);
   };
 
-  // Handle click outside to close grid controls
+  // Handle click outside to close grid controls and color picker
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Handle grid controls
       if (
         showGridControls &&
         gridControlsRef.current &&
@@ -66,71 +61,32 @@ const Navbar = ({
       ) {
         setShowGridControls(false);
       }
+
+      // Handle color picker
+      if (
+        openColorPicker &&
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target) &&
+        colorButtonRef.current &&
+        !colorButtonRef.current.contains(event.target)
+      ) {
+        setOpenColorPicker(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showGridControls]);
+  }, [showGridControls, openColorPicker]);
 
   return (
-    <div className="fixed bottom-8 left-[calc(50%-162px)] z-50 h-16 bg-white border border-gray-200 rounded-md">
-      <div className="grid h-full max-w-lg grid-cols-4 mx-auto divide-x divide-gray-200">
+    <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 w-16 bg-white border border-gray-200 rounded-md">
+      <div className="flex flex-col h-full divide-y divide-gray-200">
         <div className="relative">
-          {/* Undo/Redo/Clear buttons that appear above the pen tool when it's active */}
-          {currentTool === "pen" && (
-            <div className="absolute -top-12 left-0 right-0 flex justify-center space-x-2">
-              <Tooltip text="Undo last action">
-                <button
-                  type="button"
-                  className={`p-2 rounded-md ${
-                    canUndo
-                      ? "bg-white border border-gray-200 hover:bg-gray-50"
-                      : "bg-gray-100 cursor-not-allowed"
-                  }`}
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                >
-                  <ArrowCounterClockwise
-                    size={20}
-                    weight="bold"
-                    color={canUndo ? "#973c00" : "#cccccc"}
-                  />
-                </button>
-              </Tooltip>
-              <Tooltip text="Redo last action">
-                <button
-                  type="button"
-                  className={`p-2 rounded-md ${
-                    canRedo
-                      ? "bg-white border border-gray-200 hover:bg-gray-50"
-                      : "bg-gray-100 cursor-not-allowed"
-                  }`}
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                >
-                  <ArrowClockwise
-                    size={20}
-                    weight="bold"
-                    color={canRedo ? "#973c00" : "#cccccc"}
-                  />
-                </button>
-              </Tooltip>
-              <Tooltip text="Clear entire canvas">
-                <button
-                  type="button"
-                  className="p-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50"
-                  onClick={onClearCanvas}
-                >
-                  <Eraser size={20} weight="bold" color="#973c00" />
-                </button>
-              </Tooltip>
-            </div>
-          )}
           <button
             type="button"
-            className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 rounded-l-md cursor-pointer w-full h-full ${
+            className={`inline-flex flex-col items-center justify-center p-3 hover:bg-gray-50 rounded-t-md cursor-pointer w-full ${
               currentTool === "pen" ? "bg-gray-50" : ""
             }`}
             onClick={() => setCurrentTool("pen")}
@@ -146,14 +102,15 @@ const Navbar = ({
                 currentTool === "pen" ? "text-amber-800" : "text-gray-400"
               }`}
             >
-              Pen Tool
+              Pen
             </span>
           </button>
         </div>
         <div className="relative">
           <button
             type="button"
-            className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 cursor-pointer h-full w-full`}
+            ref={colorButtonRef}
+            className={`inline-flex flex-col items-center justify-center p-3 hover:bg-gray-50 cursor-pointer w-full`}
             onClick={() => setOpenColorPicker(!openColorPicker)}
           >
             <Palette
@@ -165,18 +122,22 @@ const Navbar = ({
             <span className={`text-xs text-gray-400`}>Color</span>
           </button>
 
-          <ColorPicker
-            isOpen={openColorPicker}
-            onClose={() => setOpenColorPicker(false)}
-            currentColor={currentColor}
-            onColorChange={handleColorChange}
-          />
+          {openColorPicker && (
+            <div ref={colorPickerRef}>
+              <ColorPicker
+                isOpen={openColorPicker}
+                onClose={() => setOpenColorPicker(false)}
+                currentColor={currentColor}
+                onColorChange={handleColorChange}
+              />
+            </div>
+          )}
         </div>
         <div className="relative">
           <button
             type="button"
             ref={gridButtonRef}
-            className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 cursor-pointer h-full w-full`}
+            className={`inline-flex flex-col items-center justify-center p-3 hover:bg-gray-50 cursor-pointer w-full`}
             onClick={() => setShowGridControls(!showGridControls)}
           >
             <GridFour
@@ -191,7 +152,7 @@ const Navbar = ({
           {showGridControls && (
             <div
               ref={gridControlsRef}
-              className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white p-3 rounded-md shadow-lg border border-gray-200"
+              className="absolute left-full ml-2 top-0 bg-white p-3 rounded-md shadow-lg border border-gray-200"
             >
               <div className="flex flex-col items-center">
                 <div className="flex items-center justify-between w-full mb-2">
@@ -225,10 +186,12 @@ const Navbar = ({
         </div>
         <button
           type="button"
-          className={`inline-flex flex-col items-center justify-center px-2 hover:bg-gray-50 rounded-r-md cursor-pointer ${
+          className={`inline-flex flex-col items-center justify-center p-3 hover:bg-gray-50 rounded-b-md cursor-pointer ${
             currentTool === "sticky" ? "bg-gray-50" : ""
           }`}
-          onClick={() => setCurrentTool("sticky")}
+          onClick={() =>
+            setCurrentTool(currentTool === "sticky" ? "" : "sticky")
+          }
         >
           <NoteBlank
             size={24}
@@ -241,7 +204,7 @@ const Navbar = ({
               currentTool === "sticky" ? "text-amber-800" : "text-gray-400"
             }`}
           >
-            Sticky Note
+            Note
           </span>
         </button>
       </div>

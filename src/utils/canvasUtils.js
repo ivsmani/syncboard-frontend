@@ -47,13 +47,19 @@ export const drawGrid = (ctx, width, height, gridSize, showGrid) => {
 export const drawPaths = (canvas, paths, gridSize, showGrid) => {
   if (!canvas) return;
 
+  // Get context with alpha: false for better performance and to prevent transparency issues
   const ctx = canvas.getContext("2d", { alpha: false });
+
+  // Ensure a complete canvas reset
   ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height); // Repaint background
 
   // Redraw the grid
   drawGrid(ctx, canvas.width, canvas.height, gridSize, showGrid);
+
+  // Skip drawing paths if there are none
+  if (!paths || paths.length === 0) return;
 
   paths.forEach((path) => {
     if (!path.points || path.points.length === 0) return;

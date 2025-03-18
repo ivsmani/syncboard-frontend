@@ -1,5 +1,6 @@
 import Navbar from "./components/Navbar";
-import { useState, useRef, useEffect } from "react";
+import ActionButtons from "./components/ActionButtons";
+import { useState, useRef, useEffect, useCallback } from "react";
 import InfoButton from "./components/InfoButton";
 import StickyNoteContainer from "./components/StickyNoteContainer";
 import UserPresence from "./components/UserPresence";
@@ -26,6 +27,8 @@ import {
   loadDrawings,
   getSocket,
   setupUserPresenceListener,
+  isAnyUserDrawing,
+  drawGrid,
 } from "./utils";
 
 function App() {
@@ -38,6 +41,8 @@ function App() {
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [connectedUsers, setConnectedUsers] = useState([]);
+  const [showDrawingNotAllowed, setShowDrawingNotAllowed] = useState(false);
+  const [currentlyDrawingUser, setCurrentlyDrawingUser] = useState(null);
 
   // History state for undo/redo functionality
   const [pathHistory, setPathHistory] = useState({
@@ -64,6 +69,124 @@ function App() {
 
   // Last point for throttling
   const lastPointRef = useRef({ x: 0, y: 0 });
+
+  const activeDrawingTimeoutRef = useRef(null);
+
+  // Stop drawing or panning when the mouse is released
+  const stopDrawing = () => {
+    handleStopDrawing({
+      panningRef,
+      isSpacePressed,
+      currentTool,
+      canvasRef,
+      setIsDrawing,
+      paths,
+    });
+  };
+
+  // Add a more comprehensive touch monitoring system
+  useEffect(() => {
+    // Touch tracking to ensure drawing state is reset properly
+    let touchTimeoutId = null;
+
+    const handleTouchStart = () => {
+      // Clear any existing timeout
+      if (touchTimeoutId) {
+        clearTimeout(touchTimeoutId);
+        touchTimeoutId = null;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      // If still drawing after touch end, set a timeout to force stop
+      if (isDrawing) {
+        // Set a short timeout to allow legitimate touchEnd events to be processed first
+        touchTimeoutId = setTimeout(() => {
+          console.log("Touch monitoring: Forcing drawing state cleanup");
+          stopDrawing();
+          touchTimeoutId = null;
+        }, 100);
+      }
+    };
+
+    // Add global touch event listeners that will catch ALL touch events
+    document.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+
+    // Also monitor "pointerup" events which are more reliable on some devices
+    document.addEventListener("pointerup", () => {
+      if (isDrawing) {
+        console.log(
+          "Pointer up detected: Ensuring drawing state is cleaned up"
+        );
+        stopDrawing();
+      }
+    });
+
+    return () => {
+      // Clean up all event listeners
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchcancel", handleTouchEnd);
+      document.removeEventListener("pointerup", handleTouchEnd);
+
+      if (touchTimeoutId) {
+        clearTimeout(touchTimeoutId);
+      }
+    };
+  }, [isDrawing, stopDrawing]);
+
+  // Register global error handler
+  useEffect(() => {
+    const originalWindowOnError = window.onerror;
+
+    // Define custom error handler
+    window.onerror = (message, source, lineno, colno, error) => {
+      console.error("Global error detected:", message, error);
+
+      // If we're currently drawing, force stop drawing
+      if (isDrawing) {
+        console.log("Detected error while drawing, force stopping drawing");
+        stopDrawing();
+
+        // Also try to force clear the drawing state
+        const socket = getSocket();
+        if (socket) {
+          socket.emit("force-clear-drawing-state");
+        }
+      }
+
+      // Call original error handler if it exists
+      if (typeof originalWindowOnError === "function") {
+        return originalWindowOnError(message, source, lineno, colno, error);
+      }
+      return false;
+    };
+
+    // Cleanup function
+    return () => {
+      window.onerror = originalWindowOnError;
+    };
+  }, [isDrawing, stopDrawing]);
+
+  // Add touch event handler to document to catch touch ends outside the canvas
+  useEffect(() => {
+    const handleDocumentTouchEnd = () => {
+      if (isDrawing) {
+        console.log("Touch ended outside canvas, stopping drawing");
+        stopDrawing();
+      }
+    };
+
+    document.addEventListener("touchend", handleDocumentTouchEnd);
+
+    return () => {
+      document.removeEventListener("touchend", handleDocumentTouchEnd);
+    };
+  }, [isDrawing, stopDrawing]);
 
   // Initialize socket connection and load existing data
   useEffect(() => {
@@ -104,8 +227,23 @@ function App() {
         canvasRef
       );
 
-      // Set up user presence listener
-      setupUserPresenceListener(setConnectedUsers);
+      // Set up user presence listener with a callback for the currently drawing user
+      setupUserPresenceListener((users) => {
+        setConnectedUsers(users);
+
+        // Find the user who is currently drawing, if any
+        const drawingUser = users.find((user) => user.isDrawing);
+        setCurrentlyDrawingUser(drawingUser || null);
+      });
+
+      // Setup drawing-not-allowed listener
+      socket.on("drawing-not-allowed", () => {
+        setShowDrawingNotAllowed(true);
+        // Hide the notification after 3 seconds
+        setTimeout(() => {
+          setShowDrawingNotAllowed(false);
+        }, 3000);
+      });
 
       try {
         // Load existing drawings from the server
@@ -125,9 +263,65 @@ function App() {
       if (socket) {
         socket.off("reconnect");
         socket.off("user-presence-update");
+        socket.off("drawing-not-allowed");
+      }
+
+      // Clear any active drawing timeout
+      if (activeDrawingTimeoutRef.current) {
+        clearTimeout(activeDrawingTimeoutRef.current);
       }
     };
   }, []);
+
+  // Add a safety mechanism to release drawing state after inactivity
+  useEffect(() => {
+    // When drawing starts, set a timeout to force stop drawing if it doesn't stop naturally
+    if (isDrawing) {
+      // Clear any existing timeout
+      if (activeDrawingTimeoutRef.current) {
+        clearTimeout(activeDrawingTimeoutRef.current);
+      }
+
+      // Set a new timeout - if drawing doesn't stop in 10 seconds, force stop it
+      activeDrawingTimeoutRef.current = setTimeout(() => {
+        console.log("Drawing safety timeout triggered - forcing stop drawing");
+        if (isDrawing) {
+          stopDrawing();
+        }
+      }, 10000); // 10 seconds timeout
+    } else {
+      // Clear the timeout when drawing stops normally
+      if (activeDrawingTimeoutRef.current) {
+        clearTimeout(activeDrawingTimeoutRef.current);
+        activeDrawingTimeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      // Cleanup timeout on component unmount or when dependencies change
+      if (activeDrawingTimeoutRef.current) {
+        clearTimeout(activeDrawingTimeoutRef.current);
+      }
+    };
+  }, [isDrawing]);
+
+  // Add visibility change detection to stop drawing when app loses focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isDrawing) {
+        console.log("Page visibility changed - forcing stop drawing");
+        stopDrawing();
+      }
+    };
+
+    // Listen for visibility change events
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isDrawing]);
 
   // Handle keyboard events for spacebar
   useEffect(() => {
@@ -152,21 +346,29 @@ function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    if (paths.length > 0) {
-      // Draw paths if there are any
-      drawPaths(canvas, paths, gridSize, showGrid);
-    } else {
-      // Clear the canvas if paths array is empty
-      const ctx = canvas.getContext("2d", { alpha: false });
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Use requestAnimationFrame for smoother rendering
+    const animationFrameId = requestAnimationFrame(() => {
+      if (paths.length > 0) {
+        // Draw paths if there are any
+        drawPaths(canvas, paths, gridSize, showGrid);
+      } else {
+        // Clear the canvas if paths array is empty
+        const ctx = canvas.getContext("2d", { alpha: false });
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Redraw the grid if it's enabled
-      if (showGrid) {
-        setupCanvas(canvas, ctx, gridSize, showGrid);
+        // Redraw the grid if it's enabled
+        if (showGrid) {
+          setupCanvas(canvas, ctx, gridSize, showGrid);
+        }
       }
-    }
+    });
+
+    // Clean up function
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
   }, [paths, gridSize, showGrid]);
 
   // Add passive touch event listeners to prevent default behavior
@@ -217,11 +419,23 @@ function App() {
 
       // Send the new sticky note to the server for real-time sync
       sendNewStickyNote(newNote);
+
+      // Reset the current tool after creating a sticky note
+      setCurrentTool("");
     }
   };
 
   // Start drawing or panning on the canvas
   const startDrawing = (e) => {
+    // Check if anyone is drawing and show notification if needed
+    if (currentTool === "pen" && isAnyUserDrawing()) {
+      setShowDrawingNotAllowed(true);
+      // Hide the notification after 3 seconds
+      setTimeout(() => {
+        setShowDrawingNotAllowed(false);
+      }, 3000);
+    }
+
     handleStartDrawing(e, {
       isSpacePressed,
       panningRef,
@@ -266,18 +480,6 @@ function App() {
       containerRef,
       gridSize,
       showGrid,
-    });
-  };
-
-  // Stop drawing or panning when the mouse is released
-  const stopDrawing = () => {
-    handleStopDrawing({
-      panningRef,
-      isSpacePressed,
-      currentTool,
-      canvasRef,
-      setIsDrawing,
-      paths,
     });
   };
 
@@ -369,6 +571,20 @@ function App() {
     // Clear the canvas by setting paths to empty array
     setPaths([]);
 
+    // Get the canvas and manually clear it to ensure no artifacts remain
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Redraw the grid if it's enabled
+      if (showGrid) {
+        drawGrid(ctx, canvas.width, canvas.height, gridSize, showGrid);
+      }
+    }
+
     // Sync the empty paths array with the server using update-drawing
     console.log("Syncing clear canvas operation with server");
     sendDrawingData({
@@ -378,6 +594,47 @@ function App() {
     });
   };
 
+  // Show a descriptive notification if someone else is drawing
+  const getDrawingNotificationText = () => {
+    if (!currentlyDrawingUser) return "Someone else is currently drawing";
+
+    // Use the initial and first 6 characters of the ID if no name is available
+    return `User ${currentlyDrawingUser.initial} is currently drawing`;
+  };
+
+  // Make stopDrawing consistent for use in event handlers
+  const stopDrawingHandler = useCallback(() => {
+    stopDrawing();
+  }, [stopDrawing]);
+
+  // Add another effect for focus/blur events
+  useEffect(() => {
+    const handleFocusChange = () => {
+      // When the window regains focus, check if we were drawing and force cleanup if needed
+      if (isDrawing) {
+        console.log(
+          "Window focus changed, ensuring drawing state is cleaned up"
+        );
+        stopDrawing();
+
+        // Also force clear on the server
+        const socket = getSocket();
+        if (socket) {
+          socket.emit("force-clear-drawing-state");
+        }
+      }
+    };
+
+    // Listen for both focus and blur events to catch all cases
+    window.addEventListener("focus", handleFocusChange);
+    window.addEventListener("blur", handleFocusChange);
+
+    return () => {
+      window.removeEventListener("focus", handleFocusChange);
+      window.removeEventListener("blur", handleFocusChange);
+    };
+  }, [isDrawing, stopDrawing]);
+
   return (
     <main
       className="overflow-visible"
@@ -385,6 +642,11 @@ function App() {
     >
       <InfoButton connectedUsers={connectedUsers} />
       <UserPresence users={connectedUsers} />
+      {showDrawingNotAllowed && (
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-[9999] animate-pulse">
+          {getDrawingNotificationText()}
+        </div>
+      )}
       <div
         className="relative"
         style={{
@@ -416,12 +678,17 @@ function App() {
             style={{ touchAction: "none" }}
             onMouseDown={startDrawing}
             onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseOut={stopDrawing}
+            onMouseUp={stopDrawingHandler}
+            onMouseOut={stopDrawingHandler}
             onTouchStart={startDrawing}
             onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-            onTouchCancel={stopDrawing}
+            onTouchEnd={stopDrawingHandler}
+            onTouchCancel={stopDrawingHandler}
+            onPointerDown={startDrawing}
+            onPointerMove={draw}
+            onPointerUp={stopDrawingHandler}
+            onPointerLeave={stopDrawingHandler}
+            onBlur={stopDrawingHandler}
           />
 
           {/* Sticky Notes Layer */}
@@ -441,12 +708,16 @@ function App() {
         setGridSize={setGridSize}
         showGrid={showGrid}
         setShowGrid={setShowGrid}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onClearCanvas={handleClearCanvas}
-        canUndo={pathHistory.past.length > 0}
-        canRedo={pathHistory.future.length > 0}
       />
+      {currentTool === "pen" && (
+        <ActionButtons
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onClearCanvas={handleClearCanvas}
+          canUndo={pathHistory.past.length > 0}
+          canRedo={pathHistory.future.length > 0}
+        />
+      )}
     </main>
   );
 }

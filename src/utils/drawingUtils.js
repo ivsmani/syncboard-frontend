@@ -1,6 +1,17 @@
 // Drawing utility functions
 import { drawPaths } from "./canvasUtils";
 import { sendPath, sendStopDrawingEvent } from "./apiUtils";
+import { isAnyUserDrawing, getSocket } from "./socketUtils";
+
+// Keep track of active touches to prevent issues with multi-touch
+const activeTouches = new Set();
+
+// Keep track of drawing touch ID to ensure only the original touch controls drawing
+let activeDrawingTouchId = null;
+
+// Add a maximum duration for continuous drawing to prevent stuck states
+const MAX_DRAWING_DURATION = 30000; // 30 seconds
+let drawingStartTime = 0;
 
 /**
  * Calculate distance between two points
@@ -79,6 +90,26 @@ export const handleStartDrawing = (e, params) => {
     handleCanvasClick,
   } = params;
 
+  // Record drawing start time
+  drawingStartTime = Date.now();
+
+  // Track touch identifiers to handle multi-touch properly
+  if (e.touches) {
+    // Reset active touches on new touch start to prevent state issues
+    activeTouches.clear();
+
+    // Register all current touches
+    for (let i = 0; i < e.touches.length; i++) {
+      activeTouches.add(e.touches[i].identifier);
+
+      // If this is the first touch and we're about to start drawing,
+      // remember this touch ID so only this touch controls drawing
+      if (i === 0 && currentTool === "pen") {
+        activeDrawingTouchId = e.touches[i].identifier;
+      }
+    }
+  }
+
   // Check for two-finger touch (for panning on mobile)
   if (e.touches && e.touches.length === 2) {
     e.preventDefault();
@@ -147,6 +178,12 @@ export const handleStartDrawing = (e, params) => {
 
   if (currentTool !== "pen") return; // Only allow drawing with the pen tool
 
+  // Check if anyone else is currently drawing
+  if (isAnyUserDrawing()) {
+    console.log("Drawing prevented: someone else is already drawing");
+    return;
+  }
+
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.strokeStyle = currentColor; // Set the current color
   ctx.lineWidth = 2.5; // Match the line width in drawPaths
@@ -171,6 +208,18 @@ export const handleStartDrawing = (e, params) => {
 
   // Initialize the last point reference
   lastPointRef.current = startPoint;
+
+  // When setting drawing to true, record the ID to help with cleanup
+  if (currentTool === "pen") {
+    // For pointer events, track the pointer ID
+    if (e.pointerId) {
+      activeDrawingTouchId = e.pointerId;
+    }
+    // For mouse events, use a special ID
+    else if (!e.touches) {
+      activeDrawingTouchId = "mouse";
+    }
+  }
 };
 
 /**
@@ -192,6 +241,86 @@ export const handleDraw = (e, params) => {
     gridSize,
     showGrid,
   } = params;
+
+  // Check for drawing timeout to prevent stuck states
+  if (isDrawing && Date.now() - drawingStartTime > MAX_DRAWING_DURATION) {
+    console.log("Drawing timeout exceeded, forcing stop drawing");
+    handleStopDrawing({
+      panningRef,
+      isSpacePressed,
+      currentTool: "pen", // Force it to be pen to ensure cleanup
+      canvasRef,
+      setIsDrawing: params.setIsDrawing,
+      paths,
+    });
+    return;
+  }
+
+  // For touch events, verify we're still tracking the original touch
+  if (e.touches && isDrawing && activeDrawingTouchId !== null) {
+    let originalTouchFound = false;
+
+    // Look for our active drawing touch ID
+    for (let i = 0; i < e.touches.length; i++) {
+      if (e.touches[i].identifier === activeDrawingTouchId) {
+        originalTouchFound = true;
+        break;
+      }
+    }
+
+    // If the original touch that started drawing is gone, stop drawing
+    if (!originalTouchFound) {
+      console.log("Original drawing touch not found, stopping drawing");
+      handleStopDrawing({
+        panningRef,
+        isSpacePressed,
+        currentTool: "pen",
+        canvasRef,
+        setIsDrawing: params.setIsDrawing,
+        paths,
+      });
+      return;
+    }
+  }
+
+  // For pointer events, check if this is the same pointer that started drawing
+  if (
+    e.pointerId &&
+    isDrawing &&
+    activeDrawingTouchId !== null &&
+    e.pointerId !== activeDrawingTouchId
+  ) {
+    console.log("Different pointer ID, ignoring for drawing");
+    return;
+  }
+
+  // Handle touch moves for multi-touch detection
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    let allTouchesRegistered = true;
+
+    // Check if all current touches were previously registered
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (!activeTouches.has(e.changedTouches[i].identifier)) {
+        allTouchesRegistered = false;
+        break;
+      }
+    }
+
+    // If we detect touches that weren't registered on start, it might be a gesture
+    // so we should stop drawing to prevent issues
+    if (!allTouchesRegistered && isDrawing) {
+      console.log("Detected unregistered touches, stopping drawing for safety");
+      handleStopDrawing({
+        panningRef,
+        isSpacePressed,
+        currentTool,
+        canvasRef,
+        setIsDrawing: () => {},
+        paths,
+      });
+      return;
+    }
+  }
 
   // Handle two-finger panning on mobile
   if (
@@ -307,6 +436,15 @@ export const handleStopDrawing = (params) => {
     paths,
   } = params;
 
+  // Clear the active drawing touch ID
+  activeDrawingTouchId = null;
+
+  // Clear the active touches set
+  activeTouches.clear();
+
+  // Reset drawing start time
+  drawingStartTime = 0;
+
   if (panningRef.current.isPanning) {
     panningRef.current.isPanning = false;
     panningRef.current.isTouchPanning = false;
@@ -315,6 +453,29 @@ export const handleStopDrawing = (params) => {
   }
 
   if (currentTool !== "pen") return; // Only stop drawing with the pen
+
+  if (!canvasRef.current) {
+    // If canvas is missing but we're still in drawing state, make sure to reset server state
+    if (paths && paths.length > 0) {
+      try {
+        console.warn("Canvas missing on stopDrawing, force sending stop event");
+        sendStopDrawingEvent(paths);
+
+        // Also try to force clear the drawing state as a safety measure
+        setTimeout(() => {
+          const socket = getSocket();
+          if (socket) {
+            socket.emit("force-clear-drawing-state");
+          }
+        }, 1000);
+      } catch (error) {
+        console.error("Failed to send stop drawing event:", error);
+      }
+    }
+    setIsDrawing(false);
+    return;
+  }
+
   const canvas = canvasRef.current;
   const ctx = canvas.getContext("2d");
   ctx.closePath(); // Close the current path
@@ -324,5 +485,20 @@ export const handleStopDrawing = (params) => {
   if (paths && paths.length > 0) {
     console.log("Sending stop drawing event with", paths.length, "paths");
     sendStopDrawingEvent(paths);
+  }
+
+  // Add additional server notification for touch device safety
+  if (currentTool === "pen") {
+    try {
+      const socket = getSocket();
+      // Notify server that we're definitely stopping drawing (belt and suspenders)
+      if (socket) {
+        setTimeout(() => {
+          socket.emit("ensure-drawing-stopped", { userId: socket.id });
+        }, 300); // Small delay to ensure other events process first
+      }
+    } catch (error) {
+      console.error("Error sending ensure-drawing-stopped event:", error);
+    }
   }
 };

@@ -86,10 +86,11 @@ export const initializeSocketListeners = (
       "Received load-drawing event:",
       data ? `${data.paths?.length || 0} paths` : "no data"
     );
-    if (data && data.paths) {
-      setPaths(data.paths);
-      drawingDataCache.paths = data.paths;
-    }
+
+    // Always set paths, even if data.paths is undefined or null
+    // This ensures we clear the cache when appropriate
+    setPaths(data?.paths || []);
+    drawingDataCache.paths = data?.paths || [];
 
     if (data && data.stickyNotes) {
       setStickyNotes(data.stickyNotes);
@@ -106,8 +107,10 @@ export const initializeSocketListeners = (
     // Clear the canvas
     if (canvasRef.current) {
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { alpha: false });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
   });
 

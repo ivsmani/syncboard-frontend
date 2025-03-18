@@ -22,11 +22,11 @@ const ColorPicker = ({ isOpen, onClose, currentColor, onColorChange }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-18 left-1/2 transform -translate-x-1/2 bg-white p-2 rounded-md border border-gray-200 grid grid-cols-5 gap-1 w-48">
+    <div className="absolute left-full top-0 ml-2 bg-white p-2 rounded-md shadow-lg border border-gray-200 grid grid-cols-5 gap-1 w-48 z-50">
       {colors.map((color) => (
         <button
           key={color}
-          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center"
+          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center cursor-pointer"
           style={{ backgroundColor: color }}
           onClick={() => handleColorSelect(color)}
         >

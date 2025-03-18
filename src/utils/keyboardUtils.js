@@ -16,6 +16,7 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
   };
 
   const handleKeyDown = (e) => {
+    console.log("handleKeyDown", e.code, isInputElement(e.target));
     if (e.code === "Space" && !e.repeat && !isInputElement(e.target)) {
       // Prevent default scrolling behavior of spacebar
       e.preventDefault();
