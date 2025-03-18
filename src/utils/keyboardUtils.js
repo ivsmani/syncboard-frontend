@@ -11,13 +11,20 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
     return (
       target.tagName === "INPUT" ||
       target.tagName === "TEXTAREA" ||
-      target.isContentEditable
+      target.isContentEditable ||
+      // Also check if this is a textarea within a sticky note
+      target.closest(".bg-yellow-100 textarea") !== null
     );
   };
 
   const handleKeyDown = (e) => {
-    console.log("handleKeyDown", e.code, isInputElement(e.target));
-    if (e.code === "Space" && !e.repeat && !isInputElement(e.target)) {
+    // Check if the event target is an input element
+    if (isInputElement(e.target)) {
+      // Allow normal behavior for input elements
+      return;
+    }
+
+    if (e.code === "Space" && !e.repeat) {
       // Prevent default scrolling behavior of spacebar
       e.preventDefault();
       setIsSpacePressed(true);
@@ -26,7 +33,13 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
   };
 
   const handleKeyUp = (e) => {
-    if (e.code === "Space" && !isInputElement(e.target)) {
+    // Check if the event target is an input element
+    if (isInputElement(e.target)) {
+      // Allow normal behavior for input elements
+      return;
+    }
+
+    if (e.code === "Space") {
       // Prevent default scrolling behavior of spacebar
       e.preventDefault();
       setIsSpacePressed(false);
@@ -36,13 +49,25 @@ export const setupKeyboardEvents = (setIsSpacePressed) => {
 
   // Also prevent default on keypress to ensure it's blocked in all cases
   const handleKeyPress = (e) => {
-    if ((e.code === "Space" || e.key === " ") && !isInputElement(e.target)) {
+    // Check if the event target is an input element
+    if (isInputElement(e.target)) {
+      // Allow normal behavior for input elements
+      return;
+    }
+
+    if (e.code === "Space" || e.key === " ") {
       e.preventDefault();
     }
   };
 
   // Prevent spacebar from scrolling the page
   const handleWindowScroll = (e) => {
+    // Check if the event target is an input element
+    if (isInputElement(e.target)) {
+      // Allow normal behavior for input elements
+      return;
+    }
+
     if (e.code === "Space" || e.key === " ") {
       e.preventDefault();
       return false;
