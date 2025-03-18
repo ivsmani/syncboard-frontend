@@ -2,7 +2,7 @@
 
 ## Project Description
 
-SyncBoard is a real-time collaborative whiteboard application that allows multiple users to draw, write, and share ideas simultaneously. It provides a seamless experience for brainstorming, teaching, remote meetings, and project planning.
+SyncBoard is a real-time collaborative whiteboard application that allows multiple users to draw, write, and share ideas simultaneously. It provides a seamless experience for brainstorming, teaching, remote meetings, and project planning. The application fully supports both web and mobile platforms, allowing users to collaborate across different devices.
 
 ## Tech Stack
 
@@ -62,7 +62,8 @@ This is a collaborative team project with contributions from:
 
 ### User Interface
 
-- **Responsive Design**: Works on both desktop and mobile devices
+- **Cross-Platform Support**: Works seamlessly on both web browsers and mobile devices
+- **Responsive Design**: Automatically adapts to different screen sizes and orientations
 - **Touch Optimization**: Enhanced touch handling for drawing on mobile/tablet devices
 - **Visual Feedback**: Shows active tools and user presence indicators
 - **Info Modal**: Displays information about the application and currently connected users
