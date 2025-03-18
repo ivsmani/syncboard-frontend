@@ -1,12 +1,15 @@
-# SyncBoard: Features and Known Bugs
+# SyncBoard
 
-## Overview
+## Project Description
 
 SyncBoard is a real-time collaborative whiteboard application that allows multiple users to draw, write, and share ideas simultaneously. It provides a seamless experience for brainstorming, teaching, remote meetings, and project planning.
 
-## Getting Started
+## Tech Stack
 
-### Installation and Running
+- **Frontend**: React 19, Socket.io-client, TailwindCSS 4
+- **Backend**: Express, Socket.io, MongoDB
+
+## Installation & Setup Instructions
 
 To run the application locally:
 
@@ -20,6 +23,10 @@ To run the application locally:
    ```
    npm run dev
    ```
+
+## Deployed Application Link
+
+[SyncBoard Application](https://143.198.129.20:3003/)
 
 ## Our Team
 
